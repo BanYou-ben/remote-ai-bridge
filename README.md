@@ -1,5 +1,7 @@
 # Remote AI Bridge — Phase 1 CLI prototype
 
+[English](README.md) | [简体中文](README_zh-CN.md)
+
 Remote AI Bridge creates a user-scoped SSH reverse tunnel from a remote Linux loopback port to an existing Windows loopback HTTP/Mixed proxy. Phase 1 is foreground-only and does not install a service, helper, wrapper, GUI, or Desktop runtime recovery mechanism.
 
 ## Requirements
