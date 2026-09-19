@@ -1,7 +1,7 @@
 import pytest
 
 from app.domain.profile import Profile, ProfileValidationError, RuntimeState
-from app.infrastructure.profile_store import ProfileLockError, ProfileStore
+from app.infrastructure.profile_store import ProfileLockError, ProfileNotFoundError, ProfileStore
 
 
 def valid_profile(**changes):
@@ -71,6 +71,16 @@ def test_profiles_and_runtime_are_stored_separately(tmp_path):
     assert (tmp_path / "runtime" / "myserver.json").exists()
 
 
+def test_v1_profile_schema_loads_and_future_schema_is_rejected_explicitly():
+    data = valid_profile().to_dict()
+
+    assert Profile.from_dict(data) == valid_profile()
+
+    data["schema_version"] = 2
+    with pytest.raises(ProfileValidationError, match="unsupported profile schema_version"):
+        Profile.from_dict(data)
+
+
 def test_runtime_rejects_partial_remote_identity():
     state = RuntimeState(
         1,
@@ -129,3 +139,54 @@ def test_only_one_foreground_supervisor_lock_per_profile(tmp_path):
 
     with store.supervisor_lock("myserver"):
         pass
+
+
+def test_store_update_uses_validated_atomic_writer(tmp_path, monkeypatch):
+    store = ProfileStore(tmp_path)
+    original = valid_profile()
+    store.save_profile(original)
+    updated = valid_profile(local_proxy_port=7890)
+    writes = []
+    real_write = store._write_json
+
+    def recording_write(path, data):
+        writes.append((path, data))
+        real_write(path, data)
+
+    monkeypatch.setattr(store, "_write_json", recording_write)
+
+    store.update_profile(updated)
+
+    assert store.load_profile("myserver") == updated
+    assert writes == [(tmp_path / "profiles" / "myserver.json", updated.to_dict())]
+
+
+def test_store_update_refuses_to_create_missing_profile(tmp_path):
+    store = ProfileStore(tmp_path)
+
+    with pytest.raises(ProfileNotFoundError, match="profile not found"):
+        store.update_profile(valid_profile())
+
+
+def test_store_delete_keeps_runtime_separate(tmp_path):
+    store = ProfileStore(tmp_path)
+    profile = valid_profile()
+    state = RuntimeState(
+        1,
+        profile.name,
+        123,
+        1000.5,
+        r"C:\Windows\System32\OpenSSH\ssh.exe",
+        "tunnel-1",
+        99,
+        profile.remote_port,
+        "2026-09-02T00:00:00+00:00",
+    )
+    store.save_profile(profile)
+    store.save_runtime(state)
+
+    store.delete_profile(profile.name)
+
+    with pytest.raises(ProfileNotFoundError, match="profile not found"):
+        store.load_profile(profile.name)
+    assert store.load_runtime(profile.name) == state

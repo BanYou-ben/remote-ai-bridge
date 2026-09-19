@@ -44,6 +44,20 @@ class ProfileStore:
             raise ProfileNotFoundError(f"profile not found: {name}")
         return Profile.from_dict(self._read_json(path))
 
+    def update_profile(self, profile: Profile) -> None:
+        profile.validate()
+        path = self._profile_path(profile.name)
+        if not path.exists():
+            raise ProfileNotFoundError(f"profile not found: {profile.name}")
+        self._write_json(path, profile.to_dict())
+
+    def delete_profile(self, name: str) -> None:
+        path = self._profile_path(name)
+        try:
+            path.unlink()
+        except FileNotFoundError as exc:
+            raise ProfileNotFoundError(f"profile not found: {name}") from exc
+
     def list_profiles(self) -> list[Profile]:
         if not self.profiles_dir.exists():
             return []

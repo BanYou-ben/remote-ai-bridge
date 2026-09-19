@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import replace
+import json
 from pathlib import Path
-import re
 import sys
 import time
 
+from app.domain.errors import RABError
 from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile, ProfileValidationError
+from app.redaction import redact
 from app.infrastructure.process_identity import ProcessInspector
 from app.infrastructure.process_runner import ProcessRunner
 from app.infrastructure.profile_store import ProfileLockError, ProfileNotFoundError, ProfileStore
 from app.services.doctor import DoctorService
 from app.services.local_proxy import DEFAULT_CANDIDATE_PORTS, LocalProxyReport, LocalProxyService
+from app.services.profile_service import ProfileService
 from app.services.remote_probe import RemoteProbeService
 from app.services.ssh_config import SSHConfigService, locate_ssh
 from app.services.tunnel import ActiveTunnel, RemotePortConflictError, TunnelError, TunnelManager
@@ -21,29 +24,6 @@ from app.services.tunnel import ActiveTunnel, RemotePortConflictError, TunnelErr
 
 BACKOFF_SECONDS = (1, 2, 5, 10, 30)
 HEALTH_INTERVAL_SECONDS = 15.0
-SECRET_PATTERNS = (
-    re.compile(r"(?i)(authorization\s*:\s*)([^\s]+(?:\s+[^\s]+)?)"),
-    re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+\-/=]+"),
-    re.compile(r"(?i)(api[_-]?key\s*[=:]\s*)[^\s]+"),
-    re.compile(r"(?i)((?:access[_-]?token|refresh[_-]?token|token|secret)\s*[=:]\s*)[^\s&]+"),
-    re.compile(r"(?i)((?:cookie|set-cookie)\s*:\s*)[^\r\n]+"),
-    re.compile(r"(?i)(https?://[^:/\s]+:)[^@\s]+@"),
-    re.compile(
-        r"(?is)(-----BEGIN [^-\r\n]*PRIVATE KEY-----).*?(-----END [^-\r\n]*PRIVATE KEY-----)"
-    ),
-)
-
-
-def redact(value: str) -> str:
-    redacted = value
-    for pattern in SECRET_PATTERNS:
-        if "PRIVATE KEY" in pattern.pattern:
-            redacted = pattern.sub(r"\1\n[REDACTED]\n\2", redacted)
-        else:
-            redacted = pattern.sub(r"\1[REDACTED]", redacted)
-    return redacted
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="rab", description="Remote AI Bridge Phase 1 CLI prototype")
     parser.add_argument("--state-dir", type=Path, help=argparse.SUPPRESS)
@@ -59,6 +39,17 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--endpoint-probe-url", default="https://api.openai.com/v1/models")
     add.add_argument("--auto-reconnect", action=argparse.BooleanOptionalAction, default=True)
     profile_subparsers.add_parser("list", help="list profiles")
+    get = profile_subparsers.add_parser("get", help="show one profile")
+    get.add_argument("name")
+    update = profile_subparsers.add_parser("update", help="update a disconnected profile")
+    update.add_argument("name")
+    update.add_argument("--ssh-target")
+    update.add_argument("--local-proxy-port", type=int)
+    update.add_argument("--remote-port", type=int)
+    update.add_argument("--endpoint-probe-url")
+    update.add_argument("--auto-reconnect", action=argparse.BooleanOptionalAction, default=None)
+    delete = profile_subparsers.add_parser("delete", help="safely delete a profile")
+    delete.add_argument("name")
 
     for command in ("connect", "disconnect", "status", "doctor"):
         command_parser = subparsers.add_parser(command)
@@ -78,18 +69,26 @@ def make_services(state_dir: Path | None = None):
     ssh_config = SSHConfigService(runner, ssh_executable)
     tunnel = TunnelManager(runner, inspector, store, remote, ssh_executable)
     doctor = DoctorService(local, ssh_config, tunnel, remote)
-    return store, local, ssh_config, remote, tunnel, doctor
+    profiles = ProfileService(store, tunnel)
+    return store, profiles, local, ssh_config, remote, tunnel, doctor
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        store, local, ssh_config, remote, tunnel, doctor = make_services(args.state_dir)
+        store, profiles, local, ssh_config, remote, tunnel, doctor = make_services(args.state_dir)
         if args.command == "profile":
             if args.profile_command == "add":
-                return command_profile_add(args, store, local)
-            return command_profile_list(store)
-        profile = store.load_profile(args.name)
+                return command_profile_add(args, profiles, local)
+            if args.profile_command == "list":
+                return command_profile_list(profiles)
+            if args.profile_command == "get":
+                return command_profile_get(args.name, profiles)
+            if args.profile_command == "update":
+                return command_profile_update(args, profiles)
+            if args.profile_command == "delete":
+                return command_profile_delete(args.name, profiles)
+        profile = profiles.get(args.name)
         if args.command == "status":
             return command_status(profile, store, tunnel)
         if args.command == "disconnect":
@@ -111,13 +110,16 @@ def main(argv: list[str] | None = None) -> int:
             except ProfileLockError as exc:
                 print(f"ERROR: {exc}", file=sys.stderr)
                 return 1
+    except RABError as exc:
+        print(f"ERROR [{exc.code}]: {exc.message}", file=sys.stderr)
+        return 1 if exc.code == "PROFILE_BUSY" else 2
     except (ProfileValidationError, ProfileNotFoundError, FileExistsError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {redact(str(exc))}", file=sys.stderr)
         return 2
     return 2
 
 
-def command_profile_add(args, store: ProfileStore, local: LocalProxyService) -> int:
+def command_profile_add(args, profiles: ProfileService, local: LocalProxyService) -> int:
     candidate_ports = (args.local_proxy_port,) if args.local_proxy_port is not None else DEFAULT_CANDIDATE_PORTS
     selected: Profile | None = None
     for port in candidate_ports:
@@ -141,13 +143,13 @@ def command_profile_add(args, store: ProfileStore, local: LocalProxyService) -> 
     if selected is None:
         print("ERROR: no candidate passed TCP, HTTP proxy handshake, and AI endpoint checks", file=sys.stderr)
         return 1
-    store.save_profile(selected)
+    profiles.create(selected)
     print(f"Saved profile '{selected.name}' with local proxy port {selected.local_proxy_port}.")
     return 0
 
 
-def command_profile_list(store: ProfileStore) -> int:
-    profiles = store.list_profiles()
+def command_profile_list(profile_service: ProfileService) -> int:
+    profiles = profile_service.list()
     if not profiles:
         print("No profiles.")
         return 0
@@ -157,6 +159,39 @@ def command_profile_list(store: ProfileStore) -> int:
             f"{profile.name}\t{profile.ssh_target}\t{profile.local_proxy_host}:{profile.local_proxy_port}"
             f"\t{profile.remote_bind_host}:{profile.remote_port}\t{str(profile.auto_reconnect).lower()}"
         )
+    return 0
+
+
+def command_profile_get(name: str, profiles: ProfileService) -> int:
+    profile = profiles.get(name)
+    print(json.dumps(profile.to_dict(), ensure_ascii=False, indent=2))
+    return 0
+
+
+def command_profile_update(args, profiles: ProfileService) -> int:
+    changes = {
+        field: value
+        for field, value in (
+            ("ssh_target", args.ssh_target),
+            ("local_proxy_port", args.local_proxy_port),
+            ("remote_port", args.remote_port),
+            ("endpoint_probe_url", args.endpoint_probe_url),
+            ("auto_reconnect", args.auto_reconnect),
+        )
+        if value is not None
+    }
+    updated = profiles.update(args.name, changes)
+    print(f"Updated profile '{updated.name}'.")
+    return 0
+
+
+def command_profile_delete(name: str, profiles: ProfileService) -> int:
+    result = profiles.delete(name)
+    if result.stopped_owned_process:
+        print(f"Stopped the owned SSH tunnel for profile '{name}'.")
+    elif result.removed_stale_runtime:
+        print(f"Removed stale runtime for profile '{name}' without terminating an unverified process.")
+    print(f"Deleted profile '{name}'.")
     return 0
 
 

@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SSH_TARGET_RE = re.compile(r"^(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 REMOTE_USER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,63}$")
+CURRENT_PROFILE_SCHEMA_VERSION = 1
 
 
 class ProfileValidationError(ValueError):
@@ -29,8 +30,8 @@ class Profile:
     endpoint_probe_url: str = "https://api.openai.com/v1/models"
 
     def validate(self) -> None:
-        if self.schema_version != 1:
-            raise ProfileValidationError("schema_version must be 1")
+        if self.schema_version != CURRENT_PROFILE_SCHEMA_VERSION:
+            raise ProfileValidationError(f"schema_version must be {CURRENT_PROFILE_SCHEMA_VERSION}")
         if not PROFILE_NAME_RE.fullmatch(self.name):
             raise ProfileValidationError("invalid profile name")
         if not SSH_TARGET_RE.fullmatch(self.ssh_target) or self.ssh_target.startswith("-"):
@@ -62,6 +63,9 @@ class Profile:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> "Profile":
+        schema_version = data.get("schema_version")
+        if schema_version != CURRENT_PROFILE_SCHEMA_VERSION:
+            raise ProfileValidationError(f"unsupported profile schema_version: {schema_version!r}")
         try:
             profile = cls(**data)
         except TypeError as exc:
