@@ -94,6 +94,12 @@ class ProfileService:
         try:
             with self.store.supervisor_lock(name):
                 profile = self.store.load_profile(name)
+                if profile.schema_version == 2 or profile.profile_type == "managed":
+                    raise RABError(
+                        "MANAGED_PROFILE_CREDENTIAL_CLEANUP_REQUIRED",
+                        "managed profile credentials must be safely revoked before the profile can be deleted",
+                        details={"name": name, "key_id": profile.key_id},
+                    )
                 state = self.store.load_runtime(name)
                 stopped_owned_process = False
                 removed_stale_runtime = False

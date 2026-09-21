@@ -82,4 +82,9 @@ def _is_sensitive_key(value: str) -> bool:
         return True
     if any(normalised.endswith(f"_{suffix}") for suffix in SENSITIVE_DETAIL_SUFFIXES):
         return True
-    return normalised.startswith("authorization_") or normalised.endswith("_authorization") or normalised.endswith("_cookie")
+    return (
+        normalised.startswith("authorization_")
+        or normalised.endswith("_authorization")
+        or normalised.endswith("_cookie")
+        or normalised.startswith("private_key_")
+    )

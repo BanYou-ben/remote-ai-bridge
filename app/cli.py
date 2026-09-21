@@ -65,8 +65,8 @@ def make_services(state_dir: Path | None = None):
     if ssh_executable is None:
         raise RuntimeError("Windows OpenSSH ssh.exe was not found on PATH")
     local = LocalProxyService()
-    remote = RemoteProbeService(runner, ssh_executable)
-    ssh_config = SSHConfigService(runner, ssh_executable)
+    remote = RemoteProbeService(runner, ssh_executable, state_root=store.root)
+    ssh_config = SSHConfigService(runner, ssh_executable, state_root=store.root)
     tunnel = TunnelManager(runner, inspector, store, remote, ssh_executable)
     doctor = DoctorService(local, ssh_config, tunnel, remote)
     profiles = ProfileService(store, tunnel)
@@ -241,7 +241,7 @@ def command_connect(
     ssh_config: SSHConfigService,
     tunnel_manager: TunnelManager,
 ) -> int:
-    ssh_check = ssh_config.check(profile.ssh_target)
+    ssh_check = ssh_config.check(profile)
     print_check(ssh_check)
     if not ssh_check.passed:
         return 1

@@ -6,11 +6,17 @@ import re
 import uuid
 from urllib.parse import urlsplit
 
+from app.domain.ssh_bootstrap import is_valid_host_key_type
+
 
 PROFILE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 SSH_TARGET_RE = re.compile(r"^(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 REMOTE_USER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,63}$")
-CURRENT_PROFILE_SCHEMA_VERSION = 1
+MANAGED_HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$")
+MANAGED_KEY_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+HOST_KEY_FINGERPRINT_RE = re.compile(r"^SHA256:[A-Za-z0-9+/]{20,}={0,2}$")
+CURRENT_PROFILE_SCHEMA_VERSION = 2
+SUPPORTED_PROFILE_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 class ProfileValidationError(ValueError):
@@ -28,10 +34,17 @@ class Profile:
     remote_port: int = 17890
     auto_reconnect: bool = True
     endpoint_probe_url: str = "https://api.openai.com/v1/models"
+    profile_type: str = "legacy"
+    host: str | None = None
+    username: str | None = None
+    ssh_port: int | None = None
+    key_id: str | None = None
+    host_key_type: str | None = None
+    host_key_fingerprint: str | None = None
 
     def validate(self) -> None:
-        if self.schema_version != CURRENT_PROFILE_SCHEMA_VERSION:
-            raise ProfileValidationError(f"schema_version must be {CURRENT_PROFILE_SCHEMA_VERSION}")
+        if self.schema_version not in SUPPORTED_PROFILE_SCHEMA_VERSIONS:
+            raise ProfileValidationError(f"unsupported profile schema_version: {self.schema_version!r}")
         if not PROFILE_NAME_RE.fullmatch(self.name):
             raise ProfileValidationError("invalid profile name")
         if not SSH_TARGET_RE.fullmatch(self.ssh_target) or self.ssh_target.startswith("-"):
@@ -56,18 +69,63 @@ class Profile:
             or parsed.fragment
         ):
             raise ProfileValidationError("endpoint probe URL must be an HTTPS URL without credentials, query, or fragment")
+        managed_values = (
+            self.host,
+            self.username,
+            self.ssh_port,
+            self.key_id,
+            self.host_key_type,
+            self.host_key_fingerprint,
+        )
+        if self.schema_version == 1:
+            if self.profile_type != "legacy" or any(value is not None for value in managed_values):
+                raise ProfileValidationError("legacy v1 profiles cannot contain managed SSH metadata")
+            return
+        if self.profile_type != "managed":
+            raise ProfileValidationError("schema v2 profiles must use managed profile_type")
+        if any(value is None for value in managed_values):
+            raise ProfileValidationError("managed profile SSH metadata is incomplete")
+        if not MANAGED_HOST_RE.fullmatch(str(self.host)):
+            raise ProfileValidationError("invalid managed SSH host")
+        if not REMOTE_USER_RE.fullmatch(str(self.username)):
+            raise ProfileValidationError("invalid managed SSH username")
+        if isinstance(self.ssh_port, bool) or not isinstance(self.ssh_port, int) or not 1 <= self.ssh_port <= 65535:
+            raise ProfileValidationError("managed SSH port must be an integer from 1 to 65535")
+        if not MANAGED_KEY_ID_RE.fullmatch(str(self.key_id)):
+            raise ProfileValidationError("invalid managed SSH key ID")
+        if not is_valid_host_key_type(self.host_key_type):
+            raise ProfileValidationError("invalid managed SSH host key type")
+        if not HOST_KEY_FINGERPRINT_RE.fullmatch(str(self.host_key_fingerprint)):
+            raise ProfileValidationError("invalid managed SSH host key fingerprint")
+        if self.ssh_target != f"{self.username}@{self.host}":
+            raise ProfileValidationError("managed ssh_target must match username and host")
 
     def to_dict(self) -> dict[str, object]:
         self.validate()
-        return asdict(self)
+        values = asdict(self)
+        if self.schema_version == 1:
+            for key in (
+                "profile_type",
+                "host",
+                "username",
+                "ssh_port",
+                "key_id",
+                "host_key_type",
+                "host_key_fingerprint",
+            ):
+                values.pop(key)
+        return values
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> "Profile":
         schema_version = data.get("schema_version")
-        if schema_version != CURRENT_PROFILE_SCHEMA_VERSION:
+        if schema_version not in SUPPORTED_PROFILE_SCHEMA_VERSIONS:
             raise ProfileValidationError(f"unsupported profile schema_version: {schema_version!r}")
         try:
-            profile = cls(**data)
+            values = dict(data)
+            if schema_version == 1:
+                values.setdefault("profile_type", "legacy")
+            profile = cls(**values)
         except TypeError as exc:
             raise ProfileValidationError(f"invalid profile fields: {exc}") from exc
         profile.validate()

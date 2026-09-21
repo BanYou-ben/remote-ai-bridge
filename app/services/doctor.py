@@ -34,7 +34,7 @@ class DoctorService:
 
     def run(self, profile: Profile) -> DoctorReport:
         local = self.local_proxy.inspect(profile)
-        ssh = self.ssh_config.check(profile.ssh_target)
+        ssh = self.ssh_config.check(profile)
         tunnel = self.tunnel.process_check(profile.name)
         if tunnel.passed and ssh.passed:
             listener = self.remote_probe.check_listener(profile)

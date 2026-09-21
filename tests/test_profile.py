@@ -76,9 +76,98 @@ def test_v1_profile_schema_loads_and_future_schema_is_rejected_explicitly():
 
     assert Profile.from_dict(data) == valid_profile()
 
-    data["schema_version"] = 2
+    data["schema_version"] = 3
     with pytest.raises(ProfileValidationError, match="unsupported profile schema_version"):
         Profile.from_dict(data)
+
+
+def test_managed_v2_profile_round_trip_and_contains_no_private_material():
+    profile = Profile(
+        schema_version=2,
+        name="managed-server",
+        ssh_target="tester@server.example",
+        profile_type="managed",
+        host="server.example",
+        username="tester",
+        ssh_port=2222,
+        key_id="1" * 32,
+        host_key_type="ssh-ed25519",
+        host_key_fingerprint="SHA256:YWJjZGVmZ2hpamtsbW5vcHFyc3Q",
+    )
+
+    payload = profile.to_dict()
+
+    assert Profile.from_dict(payload) == profile
+    assert payload["profile_type"] == "managed"
+    assert "password" not in payload
+    assert "private_key" not in payload
+    assert "private_key_path" not in payload
+
+
+@pytest.mark.parametrize(
+    "key_type",
+    [
+        "ssh-ed25519",
+        "ssh-rsa",
+        "ecdsa-sha2-nistp256",
+        "ecdsa-sha2-nistp384",
+        "ecdsa-sha2-nistp521",
+    ],
+)
+def test_managed_profile_accepts_valid_host_key_algorithm_tokens(key_type):
+    profile = Profile(
+        schema_version=2,
+        name="managed-server",
+        ssh_target="tester@server.example",
+        profile_type="managed",
+        host="server.example",
+        username="tester",
+        ssh_port=22,
+        key_id="1" * 32,
+        host_key_type=key_type,
+        host_key_fingerprint="SHA256:YWJjZGVmZ2hpamtsbW5vcHFyc3Q",
+    )
+
+    profile.validate()
+
+
+@pytest.mark.parametrize("key_type", ["", "ssh ed25519", "ssh-ed25519\nmalicious"])
+def test_managed_profile_rejects_unsafe_host_key_algorithm_tokens(key_type):
+    profile = Profile(
+        schema_version=2,
+        name="managed-server",
+        ssh_target="tester@server.example",
+        profile_type="managed",
+        host="server.example",
+        username="tester",
+        ssh_port=22,
+        key_id="1" * 32,
+        host_key_type=key_type,
+        host_key_fingerprint="SHA256:YWJjZGVmZ2hpamtsbW5vcHFyc3Q",
+    )
+
+    with pytest.raises(ProfileValidationError, match="host key type"):
+        profile.validate()
+
+
+@pytest.mark.parametrize("field", ["password", "ssh_password", "private_key", "private_key_content"])
+def test_managed_profile_rejects_secret_fields_during_deserialization(field):
+    payload = {
+        "schema_version": 2,
+        "name": "managed-server",
+        "ssh_target": "tester@server.example",
+        "profile_type": "managed",
+        "host": "server.example",
+        "username": "tester",
+        "ssh_port": 22,
+        "key_id": "1" * 32,
+        "host_key_type": "ssh-ed25519",
+        "host_key_fingerprint": "SHA256:YWJjZGVmZ2hpamtsbW5vcHFyc3Q",
+        field: "must-not-persist",
+    }
+
+    with pytest.raises(ProfileValidationError, match="invalid profile fields"):
+        Profile.from_dict(payload)
 
 
 def test_runtime_rejects_partial_remote_identity():
@@ -122,6 +211,26 @@ def test_runtime_migrates_obsolete_listener_pid_without_serializing_it():
 
     assert migrated.has_remote_identity
     assert "remote_listener_pid" not in migrated.to_dict()
+
+
+def test_runtime_cannot_serialize_bootstrap_password_or_private_key_material():
+    state = RuntimeState(
+        1,
+        "myserver",
+        123,
+        1000.5,
+        r"C:\Windows\System32\OpenSSH\ssh.exe",
+        "tunnel-1",
+        99,
+        17890,
+        "2026-09-02T00:00:00+00:00",
+    )
+    payload = state.to_dict()
+
+    assert "password" not in payload
+    assert "private_key" not in payload
+    with pytest.raises(ProfileValidationError, match="invalid runtime fields"):
+        RuntimeState.from_dict({**payload, "bootstrap_password": "must-not-persist"})
 
 
 def test_store_refuses_path_traversal(tmp_path):

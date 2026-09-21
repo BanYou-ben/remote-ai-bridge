@@ -52,3 +52,14 @@ def test_structured_error_redacts_compound_sensitive_keys_only():
     for key in sensitive:
         assert payload[key] == "[REDACTED]"
     assert {key: payload[key] for key in ordinary} == ordinary
+
+
+def test_structured_error_redacts_private_key_material_field():
+    payload = RABError(
+        "TEST",
+        "failed",
+        details={"privateKeyMaterial": "raw-private-material", "public_key": "safe-public-value"},
+    ).to_dict()["details"]
+
+    assert payload["privateKeyMaterial"] == "[REDACTED]"
+    assert payload["public_key"] == "safe-public-value"

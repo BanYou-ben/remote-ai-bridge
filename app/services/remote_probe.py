@@ -2,20 +2,30 @@ from __future__ import annotations
 
 import shlex
 import uuid
+from pathlib import Path
 
 from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile, ProfileValidationError, RemoteTunnelIdentity, RuntimeState
 from app.infrastructure.process_runner import ProcessRunner
+from app.infrastructure.profile_store import default_state_root
+from app.infrastructure.ssh_key_store import managed_ssh_options
 
 
 class RemoteProbeService:
-    def __init__(self, runner: ProcessRunner, ssh_executable: str, timeout: float = 15.0) -> None:
+    def __init__(
+        self,
+        runner: ProcessRunner,
+        ssh_executable: str,
+        timeout: float = 15.0,
+        state_root: Path | None = None,
+    ) -> None:
         self.runner = runner
         self.ssh_executable = ssh_executable
         self.timeout = timeout
+        self.state_root = state_root or default_state_root()
 
-    def ssh_prefix(self, target: str) -> list[str]:
-        return [
+    def ssh_prefix(self, profile: Profile) -> list[str]:
+        prefix = [
             self.ssh_executable,
             "-T",
             "-o",
@@ -24,13 +34,15 @@ class RemoteProbeService:
             "StrictHostKeyChecking=yes",
             "-o",
             f"ConnectTimeout={max(1, int(self.timeout))}",
-            target,
         ]
+        prefix.extend(managed_ssh_options(profile, self.state_root))
+        prefix.append(profile.ssh_target)
+        return prefix
 
     def check_listener(self, profile: Profile, port: int | None = None) -> CheckResult:
         checked_port = port if port is not None else profile.remote_port
         remote_command = f"ss -ltnH 'sport = :{checked_port}'"
-        result = self.runner.run(self.ssh_prefix(profile.ssh_target) + [remote_command], timeout=self.timeout)
+        result = self.runner.run(self.ssh_prefix(profile) + [remote_command], timeout=self.timeout)
         if not result.ok:
             detail = result.stderr.strip() or result.stdout.strip() or "remote listener check failed"
             return CheckResult("Remote listener", CheckStatus.FAIL, detail[:300], "REMOTE_CHECK_FAILED")
@@ -76,7 +88,7 @@ class RemoteProbeService:
                 shlex.quote(profile.endpoint_probe_url),
             ]
         )
-        result = self.runner.run(self.ssh_prefix(profile.ssh_target) + [remote_command], timeout=self.timeout + 5)
+        result = self.runner.run(self.ssh_prefix(profile) + [remote_command], timeout=self.timeout + 5)
         if not result.ok:
             detail = result.stderr.strip() or result.stdout.strip() or "remote endpoint probe failed"
             error = "REMOTE_ENDPOINT_TIMEOUT" if result.timed_out else "REMOTE_ENDPOINT_UNREACHABLE"
@@ -107,7 +119,7 @@ class RemoteProbeService:
         _validate_tunnel_id(tunnel_id)
         marker = f"$HOME/.remote-ai-bridge/runtime/{tunnel_id}.state"
         remote_command = f'test -f "{marker}" && cat -- "{marker}"'
-        result = self.runner.run(self.ssh_prefix(profile.ssh_target) + [remote_command], timeout=self.timeout)
+        result = self.runner.run(self.ssh_prefix(profile) + [remote_command], timeout=self.timeout)
         if not result.ok:
             detail = result.stderr.strip() or "remote tunnel identity is not available"
             return None, CheckResult("Remote tunnel identity", CheckStatus.FAIL, detail[:300], "REMOTE_IDENTITY_UNAVAILABLE")
@@ -172,7 +184,7 @@ class RemoteProbeService:
     ) -> CheckResult:
         identity.validate()
         remote_command = _build_identity_validation_command(identity, terminate)
-        result = self.runner.run(self.ssh_prefix(profile.ssh_target) + [remote_command], timeout=self.timeout)
+        result = self.runner.run(self.ssh_prefix(profile) + [remote_command], timeout=self.timeout)
         name = "Remote stale session cleanup" if terminate else "Remote stale session ownership"
         if result.ok and result.stdout.strip().endswith("CLEANED" if terminate else "VERIFIED"):
             detail = (

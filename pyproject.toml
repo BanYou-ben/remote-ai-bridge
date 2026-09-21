@@ -7,7 +7,7 @@ name = "remote-ai-bridge"
 version = "0.1.0"
 description = "Windows-to-Linux user-scoped SSH reverse-proxy bridge"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["paramiko==5.0.0"]
 
 [project.scripts]
 rab = "app.cli:main"

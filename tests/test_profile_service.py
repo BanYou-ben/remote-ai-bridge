@@ -26,6 +26,21 @@ def profile(**changes):
     return Profile(**values)
 
 
+def managed_profile():
+    return Profile(
+        schema_version=2,
+        name="server",
+        ssh_target="tester@server.example",
+        profile_type="managed",
+        host="server.example",
+        username="tester",
+        ssh_port=22,
+        key_id="1" * 32,
+        host_key_type="ssh-ed25519",
+        host_key_fingerprint="SHA256:YWJjZGVmZ2hpamtsbW5vcHFyc3Q",
+    )
+
+
 def runtime():
     return RuntimeState(
         1,
@@ -140,6 +155,29 @@ def test_profile_service_deletes_disconnected_profile(tmp_path):
 
     assert result.name == "server"
     assert profiles.list() == []
+
+
+def test_managed_profile_delete_is_blocked_until_credential_cleanup_exists(tmp_path):
+    tunnel = MagicMock()
+    profiles, store = service(tmp_path, tunnel)
+    managed = managed_profile()
+    state = runtime()
+    profiles.create(managed)
+    store.save_runtime(state)
+    private_key = tmp_path / "ssh" / "keys" / f"id_ed25519_{managed.key_id}"
+    private_key.parent.mkdir(parents=True)
+    private_key.write_text("private-key-fixture", encoding="ascii")
+
+    with pytest.raises(RABError) as raised:
+        profiles.delete(managed.name)
+
+    assert raised.value.code == "MANAGED_PROFILE_CREDENTIAL_CLEANUP_REQUIRED"
+    assert raised.value.retryable is False
+    assert profiles.get(managed.name) == managed
+    assert store.load_runtime(managed.name) == state
+    assert private_key.read_text(encoding="ascii") == "private-key-fixture"
+    tunnel.disconnect.assert_not_called()
+    tunnel.inspector.terminate_owned.assert_not_called()
 
 
 def test_profile_service_delete_is_rejected_while_supervisor_lock_is_held(tmp_path):

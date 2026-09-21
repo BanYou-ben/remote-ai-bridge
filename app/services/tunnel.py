@@ -11,7 +11,8 @@ from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile, RemoteTunnelIdentity, RuntimeState
 from app.infrastructure.process_identity import ProcessInspector
 from app.infrastructure.process_runner import ManagedProcess, ProcessResult, ProcessRunner, wait_for_start
-from app.infrastructure.profile_store import ProfileStore
+from app.infrastructure.profile_store import ProfileStore, default_state_root
+from app.infrastructure.ssh_key_store import managed_ssh_options
 from app.services.remote_probe import RemoteProbeService, build_remote_identity_command
 
 
@@ -31,9 +32,14 @@ class RemotePortConflictError(TunnelError):
         self.suggested_port = suggested_port
 
 
-def build_tunnel_command(ssh_executable: str, profile: Profile, tunnel_id: str) -> list[str]:
+def build_tunnel_command(
+    ssh_executable: str,
+    profile: Profile,
+    tunnel_id: str,
+    state_root: Path | None = None,
+) -> list[str]:
     profile.validate()
-    return [
+    command = [
         ssh_executable,
         "-T",
         "-o",
@@ -46,11 +52,17 @@ def build_tunnel_command(ssh_executable: str, profile: Profile, tunnel_id: str) 
         "ServerAliveInterval=30",
         "-o",
         "ServerAliveCountMax=3",
-        "-R",
-        f"{profile.remote_bind_host}:{profile.remote_port}:{profile.local_proxy_host}:{profile.local_proxy_port}",
-        profile.ssh_target,
-        build_remote_identity_command(tunnel_id, profile.remote_port),
     ]
+    command.extend(managed_ssh_options(profile, state_root or default_state_root()))
+    command.extend(
+        [
+            "-R",
+            f"{profile.remote_bind_host}:{profile.remote_port}:{profile.local_proxy_host}:{profile.local_proxy_port}",
+            profile.ssh_target,
+            build_remote_identity_command(tunnel_id, profile.remote_port),
+        ]
+    )
+    return command
 
 
 @dataclass
@@ -129,7 +141,7 @@ class TunnelManager:
 
         self.store.clear_runtime(profile.name)
         tunnel_id = str(uuid.uuid4())
-        argv = build_tunnel_command(self.ssh_executable, profile, tunnel_id)
+        argv = build_tunnel_command(self.ssh_executable, profile, tunnel_id, self.store.root)
         started = self.runner.start_managed(argv)
         if isinstance(started, ProcessResult):
             raise TunnelError(started.stderr or "could not start SSH", started.error_code or "TUNNEL_START_FAILED")
