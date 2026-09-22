@@ -1,29 +1,27 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 import json
 from pathlib import Path
 import sys
-import time
 
 from app.domain.errors import RABError
 from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile, ProfileValidationError
-from app.redaction import redact
+from app.domain.supervisor import SupervisorSnapshot, SupervisorState
 from app.infrastructure.process_identity import ProcessInspector
 from app.infrastructure.process_runner import ProcessRunner
-from app.infrastructure.profile_store import ProfileLockError, ProfileNotFoundError, ProfileStore
+from app.infrastructure.profile_store import ProfileNotFoundError, ProfileStore
+from app.redaction import redact
 from app.services.doctor import DoctorService
 from app.services.local_proxy import DEFAULT_CANDIDATE_PORTS, LocalProxyReport, LocalProxyService
 from app.services.profile_service import ProfileService
 from app.services.remote_probe import RemoteProbeService
+from app.services.runtime_manager import RuntimeManager
 from app.services.ssh_config import SSHConfigService, locate_ssh
-from app.services.tunnel import ActiveTunnel, RemotePortConflictError, TunnelError, TunnelManager
+from app.services.tunnel import TunnelManager
 
 
-BACKOFF_SECONDS = (1, 2, 5, 10, 30)
-HEALTH_INTERVAL_SECONDS = 15.0
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="rab", description="Remote AI Bridge Phase 1 CLI prototype")
     parser.add_argument("--state-dir", type=Path, help=argparse.SUPPRESS)
@@ -70,13 +68,14 @@ def make_services(state_dir: Path | None = None):
     tunnel = TunnelManager(runner, inspector, store, remote, ssh_executable)
     doctor = DoctorService(local, ssh_config, tunnel, remote)
     profiles = ProfileService(store, tunnel)
-    return store, profiles, local, ssh_config, remote, tunnel, doctor
+    runtime = RuntimeManager(profiles, store, local, tunnel)
+    return store, profiles, local, ssh_config, remote, tunnel, doctor, runtime
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        store, profiles, local, ssh_config, remote, tunnel, doctor = make_services(args.state_dir)
+        store, profiles, local, ssh_config, remote, tunnel, doctor, runtime = make_services(args.state_dir)
         if args.command == "profile":
             if args.profile_command == "add":
                 return command_profile_add(args, profiles, local)
@@ -90,26 +89,13 @@ def main(argv: list[str] | None = None) -> int:
                 return command_profile_delete(args.name, profiles)
         profile = profiles.get(args.name)
         if args.command == "status":
-            return command_status(profile, store, tunnel)
+            return command_status(profile, runtime)
         if args.command == "disconnect":
-            try:
-                with store.supervisor_lock(profile.name):
-                    return command_disconnect(profile, tunnel)
-            except ProfileLockError:
-                print(
-                    "ERROR: the foreground supervisor is active; press Ctrl+C in its terminal to stop supervision and the tunnel",
-                    file=sys.stderr,
-                )
-                return 1
+            return command_disconnect(profile, runtime)
         if args.command == "doctor":
             return command_doctor(profile, doctor)
         if args.command == "connect":
-            try:
-                with store.supervisor_lock(profile.name):
-                    return command_connect(profile, store, local, ssh_config, tunnel)
-            except ProfileLockError as exc:
-                print(f"ERROR: {exc}", file=sys.stderr)
-                return 1
+            return command_connect(profile, ssh_config, runtime)
     except RABError as exc:
         print(f"ERROR [{exc.code}]: {exc.message}", file=sys.stderr)
         return 1 if exc.code == "PROFILE_BUSY" else 2
@@ -195,27 +181,20 @@ def command_profile_delete(name: str, profiles: ProfileService) -> int:
     return 0
 
 
-def command_status(profile: Profile, store: ProfileStore, tunnel: TunnelManager) -> int:
-    state = store.load_runtime(profile.name)
-    check = tunnel.process_check(profile.name)
-    if state is None:
-        print("Disconnected: no recorded tunnel state.")
-        return 1
-    print_check(check)
-    if check.passed:
-        print(
-            f"Recorded tunnel: pid={state.pid}, tunnel_id={state.tunnel_id}, "
-            f"remote_port={state.remote_port}, last_probe={state.last_successful_probe_at or 'never'}"
-        )
+def command_status(profile: Profile, runtime: RuntimeManager) -> int:
+    snapshot = runtime.status(profile.name)
+    print_supervisor_snapshot(snapshot)
+    if snapshot.state is SupervisorState.READY:
         return 0
-    print("Disconnected: recorded process identity is stale or mismatched.")
+    if snapshot.state is SupervisorState.UNSUPERVISED and snapshot.process_alive:
+        return 0
     return 1
 
 
-def command_disconnect(profile: Profile, tunnel: TunnelManager) -> int:
-    result = tunnel.disconnect(profile.name)
-    print_check(result)
-    return 0 if result.passed else 1
+def command_disconnect(profile: Profile, runtime: RuntimeManager) -> int:
+    result = runtime.stop(profile.name)
+    print_supervisor_snapshot(result.snapshot)
+    return 0 if result.snapshot.state is SupervisorState.STOPPED else 1
 
 
 def command_doctor(profile: Profile, doctor: DoctorService) -> int:
@@ -236,148 +215,29 @@ def command_doctor(profile: Profile, doctor: DoctorService) -> int:
 
 def command_connect(
     profile: Profile,
-    store: ProfileStore,
-    local: LocalProxyService,
     ssh_config: SSHConfigService,
-    tunnel_manager: TunnelManager,
+    runtime: RuntimeManager,
 ) -> int:
     ssh_check = ssh_config.check(profile)
     print_check(ssh_check)
     if not ssh_check.passed:
         return 1
-
-    active: ActiveTunnel | None = None
-    backoff_index = 0
+    previous: SupervisorSnapshot | None = None
     try:
         while True:
-            if active is not None and active.poll() is not None:
-                print(
-                    "Degraded: owned SSH process exited; retaining runtime so any stale remote session "
-                    "can be identity-verified before replacement."
-                )
-                active = None
-
-            local_report = local.inspect(profile)
-            print_local_report(local_report)
-            if not local_report.tcp.passed or not local_report.handshake.passed:
-                if not profile.auto_reconnect:
-                    print("Degraded: local proxy failure.")
-                    return 1
-                delay = BACKOFF_SECONDS[min(backoff_index, len(BACKOFF_SECONDS) - 1)]
-                backoff_index += 1
-                print(f"Degraded: local proxy failure; retrying in {delay}s. Ctrl+C to stop.")
-                time.sleep(delay)
-                continue
-            if not local_report.endpoint.passed:
-                if not profile.auto_reconnect:
-                    print("Degraded: network/endpoint path unhealthy.")
-                    return 1
-                delay = BACKOFF_SECONDS[min(backoff_index, len(BACKOFF_SECONDS) - 1)]
-                backoff_index += 1
-                print(f"Degraded: network/endpoint path unhealthy; retrying in {delay}s. Ctrl+C to stop.")
-                time.sleep(delay)
-                continue
-
-            if active is None:
-                try:
-                    active = tunnel_manager.acquire(profile)
-                except RemotePortConflictError as exc:
-                    print(f"ERROR [{exc.error_code}]: {exc}", file=sys.stderr)
-                    if exc.suggested_port is None or not _confirm_port_change(exc.suggested_port):
-                        return 1
-                    profile = replace(profile, remote_port=exc.suggested_port)
-                    profile.validate()
-                    store.save_profile(profile, overwrite=True)
-                    print(f"Updated profile '{profile.name}' to remote port {profile.remote_port} after confirmation.")
-                    continue
-                except TunnelError as exc:
-                    print(f"Degraded [{exc.error_code}]: {redact(str(exc))}")
-                    if not profile.auto_reconnect:
-                        return 1
-                    delay = BACKOFF_SECONDS[min(backoff_index, len(BACKOFF_SECONDS) - 1)]
-                    backoff_index += 1
-                    print(f"Retrying in {delay}s. Ctrl+C to stop.")
-                    time.sleep(delay)
-                    continue
-
-            listener, endpoint = tunnel_manager.verify(profile, active)
-            print_check(listener)
-            print_check(endpoint)
-            if not listener.passed or not endpoint.passed:
-                if active.poll() is not None:
-                    print(
-                        "Degraded: owned SSH process exited; retaining runtime so any stale remote session "
-                        "can be identity-verified before replacement."
-                    )
-                    active = None
-                else:
-                    print("Degraded: tunnel health check failed; keeping the live owned SSH process for recovery.")
-                if not profile.auto_reconnect:
-                    if active is not None:
-                        if not active.stop(tunnel_manager.stop_timeout):
-                            print(
-                                "ERROR: failed to stop the identity-verified tunnel; runtime state was retained.",
-                                file=sys.stderr,
-                            )
-                            return 1
-                        store.clear_runtime(profile.name)
-                        active = None
-                    return 1
-                delay = BACKOFF_SECONDS[min(backoff_index, len(BACKOFF_SECONDS) - 1)]
-                backoff_index += 1
-                print(f"Rechecking current tunnel in {delay}s. Ctrl+C to stop.")
-                time.sleep(delay)
-                continue
-
-            backoff_index = 0
-            print("Ready: bridge is healthy. Foreground supervision is active; press Ctrl+C to disconnect.")
-            last_health_check = time.monotonic()
-            while active.poll() is None:
-                time.sleep(0.5)
-                if time.monotonic() - last_health_check >= HEALTH_INTERVAL_SECONDS:
-                    listener, endpoint = tunnel_manager.verify(profile, active)
-                    if not listener.passed or not endpoint.passed:
-                        print("Degraded: bridge health check failed; retaining the current owned tunnel.")
-                        break
-                    last_health_check = time.monotonic()
-            if active.poll() is not None:
-                print(
-                    "Degraded: owned SSH process exited; retaining runtime so any stale remote session "
-                    "can be identity-verified before replacement."
-                )
-                active = None
-            if not profile.auto_reconnect:
-                if active is not None:
-                    if not active.stop(tunnel_manager.stop_timeout):
-                        print(
-                            "ERROR: failed to stop the identity-verified tunnel; runtime state was retained.",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    store.clear_runtime(profile.name)
-                    active = None
+            snapshot = runtime.start(profile.name) if previous is None else runtime.wait(profile.name, 0.25)
+            if previous is None or snapshot != previous:
+                print_supervisor_snapshot(snapshot)
+                previous = snapshot
+            if snapshot.state is SupervisorState.FAILED:
                 return 1
-            delay = BACKOFF_SECONDS[min(backoff_index, len(BACKOFF_SECONDS) - 1)]
-            backoff_index += 1
-            action = "Rechecking current tunnel" if active is not None else "Reconnecting with a new tunnel"
-            print(f"{action} in {delay}s. Ctrl+C to stop.")
-            time.sleep(delay)
+            if snapshot.state is SupervisorState.STOPPED:
+                return 0
     except KeyboardInterrupt:
         print("\nStopping foreground supervision...")
-        if active is not None:
-            if active.stop(tunnel_manager.stop_timeout):
-                store.clear_runtime(profile.name)
-                print("Owned SSH tunnel stopped.")
-            else:
-                print("WARNING: process identity did not match or the owned process did not stop; no unrelated process was terminated.")
-                return 1
-        else:
-            state = store.load_runtime(profile.name)
-            if state is not None and tunnel_manager.inspector.matches(state):
-                result = tunnel_manager.disconnect(profile.name)
-                print_check(result)
-                return 0 if result.passed else 1
-        return 0
+        result = runtime.stop(profile.name)
+        print_supervisor_snapshot(result.snapshot)
+        return 0 if result.worker_exited and result.snapshot.state is SupervisorState.STOPPED else 1
 
 
 def print_local_report(report: LocalProxyReport) -> None:
@@ -391,12 +251,11 @@ def print_check(check: CheckResult) -> None:
     print(f"{check.name}: {check.status.value}{code} - {redact(check.detail)}")
 
 
-def _confirm_port_change(port: int) -> bool:
-    try:
-        answer = input(f"Use remote loopback port {port} and update the profile? [y/N] ")
-    except EOFError:
-        return False
-    return answer.strip().lower() in {"y", "yes"}
+def print_supervisor_snapshot(snapshot: SupervisorSnapshot) -> None:
+    code = f" [{snapshot.error_code}]" if snapshot.error_code else ""
+    retry = f"; retry in {snapshot.retry_in_seconds:g}s" if snapshot.retry_in_seconds is not None else ""
+    suggestion = f"; suggested remote port {snapshot.suggested_port}" if snapshot.suggested_port is not None else ""
+    print(f"{snapshot.state.value}{code}: {redact(snapshot.message)}{retry}{suggestion}")
 
 
 if __name__ == "__main__":
