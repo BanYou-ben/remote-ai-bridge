@@ -83,6 +83,18 @@ def test_profile_service_create_list_and_get(tmp_path):
     assert profiles.get("server") == profile()
 
 
+def test_profile_service_create_availability_preflight_detects_existing_profile(tmp_path):
+    profiles, _ = service(tmp_path)
+    profiles.ensure_create_available("server")
+    profiles.create(profile())
+
+    with pytest.raises(RABError) as raised:
+        profiles.ensure_create_available("server")
+
+    assert raised.value.code == "PROFILE_EXISTS"
+    assert profiles.get("server") == profile()
+
+
 def test_profile_service_update_success(tmp_path):
     profiles, _ = service(tmp_path)
     profiles.create(profile())

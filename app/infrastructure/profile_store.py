@@ -44,6 +44,9 @@ class ProfileStore:
             raise ProfileNotFoundError(f"profile not found: {name}")
         return Profile.from_dict(self._read_json(path))
 
+    def profile_exists(self, name: str) -> bool:
+        return self._profile_path(name).exists()
+
     def update_profile(self, profile: Profile) -> None:
         profile.validate()
         path = self._profile_path(profile.name)

@@ -48,6 +48,16 @@ def test_probe_url_requires_credential_free_https(url):
         valid_profile(endpoint_probe_url=url).validate()
 
 
+def test_probe_url_rejects_out_of_range_explicit_port():
+    with pytest.raises(ProfileValidationError, match="invalid port"):
+        valid_profile(endpoint_probe_url="https://example.com:99999/").validate()
+
+
+def test_auto_reconnect_requires_boolean():
+    with pytest.raises(ProfileValidationError, match="boolean"):
+        valid_profile(auto_reconnect="yes").validate()
+
+
 def test_profiles_and_runtime_are_stored_separately(tmp_path):
     store = ProfileStore(tmp_path)
     profile = valid_profile()

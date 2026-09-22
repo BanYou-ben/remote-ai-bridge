@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
 from app.domain.errors import RABError
-from app.domain.profile import Profile, ProfileValidationError, RuntimeState
+from app.domain.profile import Profile, ProfileValidationError, RuntimeState, validate_profile_name
 from app.infrastructure.profile_store import ProfileLockError, ProfileNotFoundError, ProfileStore
 from app.services.tunnel import TunnelManager
 
@@ -58,6 +58,21 @@ class ProfileService:
         except ProfileValidationError as exc:
             raise RABError("PROFILE_INVALID", str(exc), details={"name": profile.name}) from exc
         return profile
+
+    def ensure_create_available(self, name: str) -> None:
+        try:
+            validate_profile_name(name)
+            with self.store.supervisor_lock(name):
+                if self.store.profile_exists(name):
+                    raise RABError(
+                        "PROFILE_EXISTS",
+                        f"profile already exists: {name}",
+                        details={"name": name},
+                    )
+        except ProfileLockError as exc:
+            raise self._busy(name, exc) from exc
+        except ProfileValidationError as exc:
+            raise RABError("PROFILE_INVALID", str(exc), details={"name": name}) from exc
 
     def update(self, name: str, changes: Mapping[str, Any]) -> Profile:
         if not changes:

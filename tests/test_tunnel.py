@@ -9,6 +9,7 @@ from app.infrastructure.process_identity import ProcessIdentity, ProcessInspecto
 from app.infrastructure.process_runner import ProcessResult
 from app.infrastructure.profile_store import ProfileStore
 from app.services.tunnel import RemotePortConflictError, TunnelManager, build_tunnel_command
+from app.services.remote_port import RemotePortSelector
 
 
 SSH = r"C:\Windows\System32\OpenSSH\ssh.exe"
@@ -94,6 +95,25 @@ def test_unknown_remote_port_owner_is_never_terminated(tmp_path):
 
     assert raised.value.suggested_port == 17891
     inspector.terminate_owned.assert_not_called()
+    service.runner.start_managed.assert_not_called()
+
+
+def test_existing_profile_conflict_never_calls_new_profile_port_selector(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        RemotePortSelector,
+        "select",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("selector must not be used")),
+    )
+    existing = profile()
+    remote = MagicMock()
+    remote.check_listener.return_value = CheckResult("Remote listener", CheckStatus.PASS, "occupied")
+    remote.find_free_port.return_value = 17891
+    service = manager(tmp_path, remote=remote)
+
+    with pytest.raises(RemotePortConflictError):
+        service.acquire(existing)
+
+    assert existing.remote_port == 17890
     service.runner.start_managed.assert_not_called()
 
 

@@ -23,6 +23,51 @@ class ProfileValidationError(ValueError):
     """Raised when a profile violates a Phase 1 safety constraint."""
 
 
+def validate_profile_name(name: object) -> None:
+    if not isinstance(name, str) or not PROFILE_NAME_RE.fullmatch(name):
+        raise ProfileValidationError("invalid profile name")
+
+
+def validate_endpoint_probe_url(value: object) -> None:
+    if not isinstance(value, str):
+        raise ProfileValidationError("endpoint probe URL must be a string")
+    try:
+        parsed = urlsplit(value)
+        parsed.port
+    except ValueError as exc:
+        raise ProfileValidationError("endpoint probe URL has an invalid port") from exc
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ProfileValidationError("endpoint probe URL must be an HTTPS URL without credentials, query, or fragment")
+
+
+def validate_managed_profile_setup_inputs(
+    *,
+    name: object,
+    host: object,
+    username: object,
+    ssh_port: object,
+    auto_reconnect: object,
+    endpoint_probe_url: object,
+) -> None:
+    validate_profile_name(name)
+    if not isinstance(host, str) or not MANAGED_HOST_RE.fullmatch(host):
+        raise ProfileValidationError("invalid managed SSH host")
+    if not isinstance(username, str) or not REMOTE_USER_RE.fullmatch(username):
+        raise ProfileValidationError("invalid managed SSH username")
+    if isinstance(ssh_port, bool) or not isinstance(ssh_port, int) or not 1 <= ssh_port <= 65535:
+        raise ProfileValidationError("managed SSH port must be an integer from 1 to 65535")
+    if not isinstance(auto_reconnect, bool):
+        raise ProfileValidationError("auto_reconnect must be a boolean")
+    validate_endpoint_probe_url(endpoint_probe_url)
+
+
 @dataclass(frozen=True)
 class Profile:
     schema_version: int
@@ -45,8 +90,7 @@ class Profile:
     def validate(self) -> None:
         if self.schema_version not in SUPPORTED_PROFILE_SCHEMA_VERSIONS:
             raise ProfileValidationError(f"unsupported profile schema_version: {self.schema_version!r}")
-        if not PROFILE_NAME_RE.fullmatch(self.name):
-            raise ProfileValidationError("invalid profile name")
+        validate_profile_name(self.name)
         if not SSH_TARGET_RE.fullmatch(self.ssh_target) or self.ssh_target.startswith("-"):
             raise ProfileValidationError("invalid or unsafe SSH target")
         if self.local_proxy_host != "127.0.0.1":
@@ -59,16 +103,9 @@ class Profile:
         ):
             if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
                 raise ProfileValidationError(f"{label} must be an integer from 1 to 65535")
-        parsed = urlsplit(self.endpoint_probe_url)
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username
-            or parsed.password
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ProfileValidationError("endpoint probe URL must be an HTTPS URL without credentials, query, or fragment")
+        if not isinstance(self.auto_reconnect, bool):
+            raise ProfileValidationError("auto_reconnect must be a boolean")
+        validate_endpoint_probe_url(self.endpoint_probe_url)
         managed_values = (
             self.host,
             self.username,
@@ -85,12 +122,14 @@ class Profile:
             raise ProfileValidationError("schema v2 profiles must use managed profile_type")
         if any(value is None for value in managed_values):
             raise ProfileValidationError("managed profile SSH metadata is incomplete")
-        if not MANAGED_HOST_RE.fullmatch(str(self.host)):
-            raise ProfileValidationError("invalid managed SSH host")
-        if not REMOTE_USER_RE.fullmatch(str(self.username)):
-            raise ProfileValidationError("invalid managed SSH username")
-        if isinstance(self.ssh_port, bool) or not isinstance(self.ssh_port, int) or not 1 <= self.ssh_port <= 65535:
-            raise ProfileValidationError("managed SSH port must be an integer from 1 to 65535")
+        validate_managed_profile_setup_inputs(
+            name=self.name,
+            host=self.host,
+            username=self.username,
+            ssh_port=self.ssh_port,
+            auto_reconnect=self.auto_reconnect,
+            endpoint_probe_url=self.endpoint_probe_url,
+        )
         if not MANAGED_KEY_ID_RE.fullmatch(str(self.key_id)):
             raise ProfileValidationError("invalid managed SSH key ID")
         if not is_valid_host_key_type(self.host_key_type):
