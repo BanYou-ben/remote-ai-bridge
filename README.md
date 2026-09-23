@@ -43,4 +43,17 @@ python -m pytest
 python -m app.cli --help
 ```
 
+## Local development API
+
+Phase 2.5 includes a local FastAPI runtime control surface. Start it explicitly
+on loopback only:
+
+```powershell
+python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
+```
+
+The API currently has no authentication. Do not bind it to `0.0.0.0` or expose
+it directly to a LAN or the Internet. `/health` is process liveness only; it
+does not probe SSH, the proxy, or remote endpoints.
+
 See `docs/ARCHITECTURE_PHASE_1.md` and `docs/INTEGRATION_TEST_PLAN_PHASE_1.md` for the module boundaries and opt-in real-host test plan.
