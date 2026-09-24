@@ -5,9 +5,15 @@ import logging
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
-from app.api.errors import rab_error_handler, unexpected_error_handler
+from fastapi.exceptions import RequestValidationError
+
+from app.api.errors import (
+    internal_server_error_response,
+    rab_error_handler,
+    request_validation_error_handler,
+)
 from app.api.routes import router
 from app.bootstrap import AppServices, create_services
 from app.domain.errors import RABError
@@ -38,8 +44,17 @@ def create_app(
                 )
 
     application = FastAPI(title="Remote AI Bridge API", lifespan=lifespan)
+
+    @application.middleware("http")
+    async def unexpected_error_boundary(request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.error("unexpected API failure")
+            return internal_server_error_response()
+
     application.add_exception_handler(RABError, rab_error_handler)
-    application.add_exception_handler(Exception, unexpected_error_handler)
+    application.add_exception_handler(RequestValidationError, request_validation_error_handler)
     application.include_router(router)
     return application
 

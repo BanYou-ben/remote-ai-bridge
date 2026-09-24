@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import logging
-
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.domain.errors import RABError
@@ -10,8 +9,6 @@ from app.domain.profile import ProfileValidationError, validate_profile_name
 from app.domain.supervisor import SupervisorSnapshot, SupervisorState
 from app.redaction import redact
 
-
-logger = logging.getLogger(__name__)
 
 HTTP_STATUS_BY_ERROR_CODE = {
     "PROFILE_NOT_FOUND": 404,
@@ -23,6 +20,19 @@ HTTP_STATUS_BY_ERROR_CODE = {
     "RUNTIME_STOP_FAILED": 500,
     "REMOTE_PORT_CONFLICT": 409,
     "PROFILE_INVALID": 422,
+    "PROFILE_UPDATE_EMPTY": 422,
+    "PROFILE_FIELD_NOT_UPDATABLE": 422,
+    "PROFILE_RUNTIME_ACTIVE": 409,
+    "MANAGED_PROFILE_CREDENTIAL_CLEANUP_REQUIRED": 409,
+    "PROFILE_DELETE_REMOTE_STATE_UNRESOLVED": 409,
+    "PROFILE_DELETE_RUNTIME_REMAINS": 409,
+    "PROFILE_DELETE_TUNNEL_STOP_FAILED": 503,
+    "HOST_KEY_CONFIRMATION_REQUIRED": 409,
+    "HOST_KEY_CHANGED": 409,
+    "LOCAL_PROXY_SELECTION_REQUIRED": 409,
+    "MANAGED_SETUP_UNAVAILABLE": 503,
+    "SETUP_ROLLBACK_FAILED": 500,
+    "SSH_BOOTSTRAP_FAILED": 503,
     "RUNTIME_MANAGER_SHUTTING_DOWN": 503,
 }
 
@@ -76,8 +86,32 @@ async def rab_error_handler(_request: Request, exc: RABError) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={"error": exc.to_dict()})
 
 
-async def unexpected_error_handler(_request: Request, exc: Exception) -> JSONResponse:
-    logger.error("unexpected API failure: %s", redact(str(exc)))
+async def request_validation_error_handler(
+    _request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    errors = [
+        {
+            "loc": list(item.get("loc", ())),
+            "msg": redact(str(item.get("msg", "invalid value"))),
+            "type": str(item.get("type", "value_error")),
+        }
+        for item in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "REQUEST_INVALID",
+                "message": "request validation failed",
+                "retryable": False,
+                "details": {"errors": errors},
+            }
+        },
+    )
+
+
+def internal_server_error_response() -> JSONResponse:
     return JSONResponse(
         status_code=500,
         content={

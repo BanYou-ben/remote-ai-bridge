@@ -33,6 +33,12 @@ def test_composition_root_wires_one_shared_service_graph(tmp_path, monkeypatch):
     assert services.runtime_manager.store is services.store
     assert services.runtime_manager.local_proxy is services.local_proxy
     assert services.runtime_manager.tunnel_manager is services.tunnel_manager
+    assert services.setup.local_proxy is services.local_proxy
+    assert services.setup.profiles is services.profiles
+    assert services.setup.remote_ports.remote_probe is services.remote_probe
+    assert services.setup.host_keys.root == services.store.root
+    assert services.setup.ssh_keys.root == services.store.root
+    assert services.setup.bootstrap_adapter.root == services.store.root
 
 
 def test_api_routes_do_not_implement_tunnel_or_process_operations():
@@ -63,6 +69,24 @@ def test_api_package_does_not_import_cli_or_construct_ssh_commands():
     assert "-R" not in combined
     assert "BatchMode" not in combined
     assert "RemoteProbeService" not in combined
+
+
+def test_api_routes_do_not_import_infrastructure_or_setup_implementations():
+    source = Path(routes.__file__).read_text(encoding="utf-8")
+    forbidden = (
+        "app.infrastructure",
+        "ProcessRunner",
+        "ProcessInspector",
+        "TunnelManager",
+        "SSHBootstrapAdapter",
+        "SSHKeyStore",
+        "HostKeyStore",
+        "ProfileStore",
+        "subprocess",
+    )
+
+    for marker in forbidden:
+        assert marker not in source
 
 
 def test_runtime_routes_are_plain_sync_functions():
