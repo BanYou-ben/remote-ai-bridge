@@ -43,6 +43,22 @@ python -m pytest
 python -m app.cli --help
 ```
 
+## 本地开发 API
+
+Phase 2.5 提供仅用于本地的 FastAPI Runtime 控制接口。请明确绑定本机回环地址启动：
+
+```powershell
+python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
+```
+
+当前 API 尚未实现身份认证。不要绑定 `0.0.0.0`，也不要直接暴露到局域网或互联网。
+`/health` 只表示 API 进程存活，不会探测 SSH、本地代理或远端 Endpoint。
+
+本地 API 还提供 `/profiles` 下的 Profile 查询与安全修改、`/setup/host/*`、
+`/setup/local-proxy/discover`、`/setup/managed` 管理式配置流程，以及主动诊断接口
+`POST /doctor/{name}`。Managed Setup 接收的 SSH password 只用于当前进程内的 Bootstrap
+调用，不会持久化、返回或记录；Python 不可变字符串无法保证从内存中可靠擦除。
+
 模块边界和需要人工启用的真实服务器测试方案，请参阅：
 
 - [`docs/ARCHITECTURE_PHASE_1.md`](docs/ARCHITECTURE_PHASE_1.md)

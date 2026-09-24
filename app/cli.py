@@ -5,21 +5,18 @@ import json
 from pathlib import Path
 import sys
 
+from app.bootstrap import create_services
 from app.domain.errors import RABError
 from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile, ProfileValidationError
 from app.domain.supervisor import SupervisorSnapshot, SupervisorState
-from app.infrastructure.process_identity import ProcessInspector
-from app.infrastructure.process_runner import ProcessRunner
-from app.infrastructure.profile_store import ProfileNotFoundError, ProfileStore
+from app.infrastructure.profile_store import ProfileNotFoundError
 from app.redaction import redact
 from app.services.doctor import DoctorService
 from app.services.local_proxy import DEFAULT_CANDIDATE_PORTS, LocalProxyReport, LocalProxyService
 from app.services.profile_service import ProfileService
-from app.services.remote_probe import RemoteProbeService
 from app.services.runtime_manager import RuntimeManager
-from app.services.ssh_config import SSHConfigService, locate_ssh
-from app.services.tunnel import TunnelManager
+from app.services.ssh_config import SSHConfigService
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,27 +52,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def make_services(state_dir: Path | None = None):
-    store = ProfileStore(state_dir)
-    runner = ProcessRunner()
-    inspector = ProcessInspector()
-    ssh_executable = locate_ssh()
-    if ssh_executable is None:
-        raise RuntimeError("Windows OpenSSH ssh.exe was not found on PATH")
-    local = LocalProxyService()
-    remote = RemoteProbeService(runner, ssh_executable, state_root=store.root)
-    ssh_config = SSHConfigService(runner, ssh_executable, state_root=store.root)
-    tunnel = TunnelManager(runner, inspector, store, remote, ssh_executable)
-    doctor = DoctorService(local, ssh_config, tunnel, remote)
-    profiles = ProfileService(store, tunnel)
-    runtime = RuntimeManager(profiles, store, local, tunnel)
-    return store, profiles, local, ssh_config, remote, tunnel, doctor, runtime
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        store, profiles, local, ssh_config, remote, tunnel, doctor, runtime = make_services(args.state_dir)
+        services = create_services(args.state_dir)
+        profiles = services.profiles
+        local = services.local_proxy
+        ssh_config = services.ssh_config
+        doctor = services.doctor
+        runtime = services.runtime_manager
         if args.command == "profile":
             if args.profile_command == "add":
                 return command_profile_add(args, profiles, local)
