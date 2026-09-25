@@ -31,3 +31,27 @@ export async function disconnectRuntime(name) {
 export async function runDoctor(name) {
   return (await client.post(`/doctor/${encodeURIComponent(name)}`)).data
 }
+
+export async function prepareHost(payload) {
+  return (await client.post('/setup/host/prepare', payload)).data
+}
+
+export async function confirmHost(payload) {
+  return (await client.post('/setup/host/confirm', payload)).data
+}
+
+export async function discoverLocalProxy(payload) {
+  return (await client.post('/setup/local-proxy/discover', payload)).data
+}
+
+export async function setupManagedProfile(payload) {
+  return (await client.post('/setup/managed', payload)).data
+}
+
+export async function updateProfile(name, changes) {
+  return (await client.patch(`/profiles/${encodeURIComponent(name)}`, changes)).data
+}
+
+export async function deleteProfile(name) {
+  return (await client.delete(`/profiles/${encodeURIComponent(name)}`)).data
+}

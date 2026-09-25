@@ -30,7 +30,10 @@ onMounted(loadProfiles)
       <h1>连接配置</h1>
       <p>查看托管和旧版连接配置；凭据信息不会在此显示。</p>
     </div>
-    <button class="secondary-button" type="button" :disabled="loading" @click="loadProfiles">刷新</button>
+    <div class="header-actions">
+      <RouterLink class="primary-button button-link" to="/setup">添加连接</RouterLink>
+      <button class="secondary-button" type="button" :disabled="loading" @click="loadProfiles">刷新</button>
+    </div>
   </header>
 
   <section class="section-card">
@@ -40,7 +43,10 @@ onMounted(loadProfiles)
     <div v-else class="profile-grid">
       <article v-for="profile in profiles" :key="profile.name" class="profile-card">
         <div class="profile-card-heading">
-          <div><h2>{{ profile.name }}</h2><p>{{ profile.ssh_target }}</p></div>
+          <div>
+            <h2><RouterLink :to="`/profiles/${encodeURIComponent(profile.name)}`">{{ profile.name }}</RouterLink></h2>
+            <p>{{ profile.ssh_target }}</p>
+          </div>
           <span class="soft-badge badge-purple">{{ formatProfileType(profile.profile_type) }}</span>
         </div>
         <dl>

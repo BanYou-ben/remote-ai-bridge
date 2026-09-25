@@ -11,8 +11,9 @@
       <nav aria-label="Primary navigation">
         <RouterLink to="/">总览</RouterLink>
         <RouterLink to="/profiles">连接配置</RouterLink>
+        <RouterLink to="/setup">添加连接</RouterLink>
       </nav>
-      <p class="sidebar-note">只读 Web 基础界面</p>
+      <p class="sidebar-note">本地 Web 控制台</p>
     </aside>
     <main class="main-content">
       <RouterView />

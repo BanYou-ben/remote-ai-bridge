@@ -28,7 +28,7 @@ defineEmits(['connect', 'disconnect', 'doctor'])
       <tbody>
         <template v-for="profile in profiles" :key="profile.name">
           <tr>
-            <td><strong class="primary-cell">{{ profile.name }}</strong></td>
+            <td><RouterLink class="primary-cell profile-link" :to="`/profiles/${encodeURIComponent(profile.name)}`">{{ profile.name }}</RouterLink></td>
             <td>{{ profile.ssh_target }}</td>
             <td class="monospace">{{ profile.local_proxy_host }}:{{ profile.local_proxy_port }}</td>
             <td class="monospace">{{ profile.remote_bind_host }}:{{ profile.remote_port }}</td>
