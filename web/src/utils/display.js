@@ -22,6 +22,13 @@ const RUNTIME_MESSAGE_LABELS = Object.freeze({
   'supervision stopped': '连接已停止',
 })
 
+const CHECK_STATUS_LABELS = Object.freeze({
+  PASS: '通过',
+  FAIL: '失败',
+  SKIP: '跳过',
+  UNKNOWN: '未知',
+})
+
 export function formatSupervisorState(state) {
   return SUPERVISOR_STATE_LABELS[state] ?? state
 }
@@ -39,4 +46,8 @@ export function formatProfileType(profileType) {
 export function formatRuntimeMessage(message) {
   if (!message) return '—'
   return RUNTIME_MESSAGE_LABELS[message] ?? message
+}
+
+export function formatCheckStatus(status) {
+  return CHECK_STATUS_LABELS[status] ?? status
 }

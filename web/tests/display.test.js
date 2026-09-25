@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatBoolean,
+  formatCheckStatus,
   formatProfileType,
   formatRuntimeMessage,
   formatSupervisorState,
@@ -43,5 +44,14 @@ describe('display formatters', () => {
   it('returns unknown runtime messages unchanged', () => {
     const message = 'a new backend protocol message'
     expect(formatRuntimeMessage(message)).toBe(message)
+  })
+
+  it.each([
+    ['PASS', '通过'],
+    ['FAIL', '失败'],
+    ['SKIP', '跳过'],
+    ['UNKNOWN', '未知'],
+  ])('maps doctor status %s', (status, label) => {
+    expect(formatCheckStatus(status)).toBe(label)
   })
 })

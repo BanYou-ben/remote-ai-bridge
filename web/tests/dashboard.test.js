@@ -2,12 +2,24 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DashboardView from '../src/views/DashboardView.vue'
-import { getHealth, listProfiles, listRuntime } from '../src/api/rab.js'
+import {
+  connectRuntime,
+  disconnectRuntime,
+  getHealth,
+  getRuntime,
+  listProfiles,
+  listRuntime,
+  runDoctor,
+} from '../src/api/rab.js'
 
 vi.mock('../src/api/rab.js', () => ({
   getHealth: vi.fn(),
   listProfiles: vi.fn(),
   listRuntime: vi.fn(),
+  getRuntime: vi.fn(),
+  connectRuntime: vi.fn(),
+  disconnectRuntime: vi.fn(),
+  runDoctor: vi.fn(),
 }))
 
 const profile = {
@@ -40,6 +52,10 @@ describe('DashboardView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     successfulRequests()
+    connectRuntime.mockResolvedValue({ ...runtime, state: 'READY' })
+    disconnectRuntime.mockResolvedValue({ ...runtime, state: 'STOPPED' })
+    getRuntime.mockResolvedValue(runtime)
+    runDoctor.mockResolvedValue({})
   })
 
   it('shows independent loading states', () => {

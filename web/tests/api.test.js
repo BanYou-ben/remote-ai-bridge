@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import client, { normalizeBackendError } from '../src/api/client.js'
-import { getHealth, getProfile, getRuntime, listProfiles, listRuntime } from '../src/api/rab.js'
+import {
+  connectRuntime,
+  disconnectRuntime,
+  getHealth,
+  getProfile,
+  getRuntime,
+  listProfiles,
+  listRuntime,
+  runDoctor,
+} from '../src/api/rab.js'
 
 describe('RAB API client', () => {
   beforeEach(() => vi.restoreAllMocks())
@@ -27,6 +36,16 @@ describe('RAB API client', () => {
     await getRuntime('team/profile')
     expect(get).toHaveBeenNthCalledWith(1, '/profiles/team%2Fprofile')
     expect(get).toHaveBeenNthCalledWith(2, '/runtime/team%2Fprofile')
+  })
+
+  it.each([
+    [connectRuntime, '/runtime/team%2Fprofile/connect'],
+    [disconnectRuntime, '/runtime/team%2Fprofile/disconnect'],
+    [runDoctor, '/doctor/team%2Fprofile'],
+  ])('posts to the expected action endpoint', async (request, path) => {
+    const post = vi.spyOn(client, 'post').mockResolvedValue({ data: { ok: true } })
+    await request('team/profile')
+    expect(post).toHaveBeenCalledWith(path)
   })
 
   it('normalizes FastAPI structured errors', () => {
