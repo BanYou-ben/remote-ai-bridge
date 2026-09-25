@@ -48,4 +48,32 @@ describe('ProfilesView', () => {
     expect(wrapper.text()).not.toContain('a'.repeat(32))
     expect(wrapper.text().toLowerCase()).not.toContain('password')
   })
+
+  it('reloads updated backend profile values when the page is remounted', async () => {
+    const before = {
+      name: 'managed-lab', profile_type: 'managed', ssh_target: 'example.test', host: 'example.test',
+      username: 'alice', ssh_port: 22, local_proxy_host: '127.0.0.1', local_proxy_port: 7897,
+      remote_bind_host: '127.0.0.1', remote_port: 17890, auto_reconnect: true,
+    }
+    listProfiles.mockResolvedValueOnce([before]).mockResolvedValueOnce([{ ...before, remote_port: 17901, auto_reconnect: false }])
+    const first = mount(ProfilesView)
+    await flushPromises()
+    expect(first.text()).toContain('17890')
+    first.unmount()
+
+    const returned = mount(ProfilesView)
+    await flushPromises()
+    expect(listProfiles).toHaveBeenCalledTimes(2)
+    expect(returned.text()).toContain('17901')
+    expect(returned.text()).toContain('已关闭')
+    expect(returned.text()).not.toContain('17890')
+  })
+
+  it('shows a structured backend unavailable error', async () => {
+    listProfiles.mockRejectedValue({ code: 'BACKEND_UNAVAILABLE', message: 'Backend unavailable.', details: {} })
+    const wrapper = mount(ProfilesView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('BACKEND_UNAVAILABLE')
+    expect(wrapper.text()).toContain('Backend unavailable.')
+  })
 })

@@ -55,7 +55,7 @@ const managedProfile = {
 
 function mountView() {
   return mount(SetupView, {
-    global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } },
   })
 }
 
@@ -205,6 +205,9 @@ describe('SetupView managed setup wizard', () => {
     })
     expect(wrapper.text()).toContain('连接配置已创建')
     expect(wrapper.text()).not.toContain(secret)
+    const links = wrapper.findAll('a')
+    expect(links.find((link) => link.text() === '查看配置').attributes('href')).toBe('/profiles/managed-lab')
+    expect(links.find((link) => link.text() === '返回总览').attributes('href')).toBe('/')
   })
 
   it.each([

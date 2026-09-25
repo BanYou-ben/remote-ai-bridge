@@ -100,7 +100,10 @@ onMounted(refresh)
       <span class="count">{{ profiles.length }} 条</span>
     </div>
     <p v-if="loading.profiles" class="state-message">正在加载连接配置……</p>
-    <p v-else-if="errors.profiles" class="state-message error-message">连接配置加载失败</p>
+    <div v-else-if="errors.profiles" class="structured-error" role="alert">
+      <strong>{{ errors.profiles.code || 'PROFILE_LIST_FAILED' }}</strong>
+      <span>{{ errors.profiles.message || '连接配置加载失败' }}</span>
+    </div>
     <ProfileTable
       v-else
       :profiles="profiles"
@@ -118,7 +121,10 @@ onMounted(refresh)
       <span class="count">{{ runtime.length }} 条</span>
     </div>
     <p v-if="loading.runtime" class="state-message">正在加载运行状态……</p>
-    <p v-else-if="errors.runtime" class="state-message error-message">运行状态加载失败</p>
+    <div v-else-if="errors.runtime" class="structured-error" role="alert">
+      <strong>{{ errors.runtime.code || 'RUNTIME_LIST_FAILED' }}</strong>
+      <span>{{ errors.runtime.message || '运行状态加载失败' }}</span>
+    </div>
     <RuntimeTable v-else :runtime="runtime" />
   </section>
 

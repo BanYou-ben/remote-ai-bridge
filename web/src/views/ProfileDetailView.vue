@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { deleteProfile, getProfile, updateProfile } from '../api/rab.js'
@@ -16,6 +16,7 @@ const error = ref(null)
 const deleteNotice = ref('')
 const form = reactive({ local_proxy_port: 0, remote_port: 0, auto_reconnect: true, endpoint_probe_url: '' })
 let syncingForm = false
+let loadSequence = 0
 
 function syncForm(value, nextState) {
   syncingForm = true
@@ -41,15 +42,23 @@ watch(
 )
 
 async function load() {
+  const sequence = ++loadSequence
+  const requestedName = props.name
   loading.value = true
   error.value = null
+  profile.value = null
+  deleteNotice.value = ''
+  saveState.value = 'idle'
   try {
-    profile.value = await getProfile(props.name)
-    syncForm(profile.value, 'idle')
+    const loaded = await getProfile(requestedName)
+    if (sequence !== loadSequence) return
+    profile.value = loaded
+    syncForm(loaded, 'idle')
   } catch (caught) {
+    if (sequence !== loadSequence) return
     error.value = caught
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 
@@ -92,7 +101,7 @@ async function remove() {
   }
 }
 
-onMounted(load)
+watch(() => props.name, load, { immediate: true })
 </script>
 
 <template>

@@ -120,4 +120,32 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('已开启')
     expect(wrapper.text()).toContain('是')
   })
+
+  it('reloads profiles and runtime from the backend when Dashboard is remounted', async () => {
+    const first = mount(DashboardView)
+    await flushPromises()
+    expect(first.text()).toContain('lab-server')
+    first.unmount()
+
+    successfulRequests({
+      profiles: [{ ...profile, name: 'new-managed-profile', remote_port: 17902 }],
+      runtimeItems: [{ ...runtime, profile_name: 'new-managed-profile', remote_port: 17902 }],
+    })
+    const returned = mount(DashboardView)
+    await flushPromises()
+    expect(listProfiles).toHaveBeenCalledTimes(2)
+    expect(listRuntime).toHaveBeenCalledTimes(2)
+    expect(returned.text()).toContain('new-managed-profile')
+    expect(returned.text()).toContain('17902')
+  })
+
+  it('shows structured profile and runtime load errors', async () => {
+    listProfiles.mockRejectedValue({ code: 'BACKEND_UNAVAILABLE', message: 'profiles unavailable' })
+    listRuntime.mockRejectedValue({ code: 'BACKEND_UNAVAILABLE', message: 'runtime unavailable' })
+    const wrapper = mount(DashboardView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('profiles unavailable')
+    expect(wrapper.text()).toContain('runtime unavailable')
+    expect(wrapper.text()).toContain('BACKEND_UNAVAILABLE')
+  })
 })

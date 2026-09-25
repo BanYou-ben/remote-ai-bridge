@@ -38,7 +38,10 @@ onMounted(loadProfiles)
 
   <section class="section-card">
     <p v-if="loading" class="state-message">正在加载连接配置……</p>
-    <p v-else-if="error" class="state-message error-message">连接配置加载失败</p>
+    <div v-else-if="error" class="structured-error" role="alert">
+      <strong>{{ error.code || 'PROFILE_LIST_FAILED' }}</strong>
+      <span>{{ error.message || '连接配置加载失败' }}</span>
+    </div>
     <p v-else-if="profiles.length === 0" class="state-message">暂无连接配置</p>
     <div v-else class="profile-grid">
       <article v-for="profile in profiles" :key="profile.name" class="profile-card">

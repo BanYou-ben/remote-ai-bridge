@@ -64,6 +64,35 @@ describe('ProfileDetailView', () => {
     expect(wrapper.text()).not.toContain(managedProfile.key_id)
   })
 
+  it('reloads backend truth when the reused route changes profile name', async () => {
+    const second = { ...managedProfile, name: 'managed-b', host: 'second.example.test', remote_port: 17899 }
+    getProfile.mockResolvedValueOnce(managedProfile).mockResolvedValueOnce(second)
+    const wrapper = mount(ProfileDetailView, {
+      props: { name: 'managed-lab' },
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('managed-lab')
+    await wrapper.setProps({ name: 'managed-b' })
+    await flushPromises()
+    expect(getProfile).toHaveBeenNthCalledWith(2, 'managed-b')
+    expect(wrapper.text()).toContain('managed-b')
+    expect(wrapper.text()).toContain('second.example.test')
+    expect(wrapper.text()).not.toContain('managed-lab')
+  })
+
+  it('shows a structured profile-not-found load error without stale detail', async () => {
+    getProfile.mockRejectedValueOnce({ code: 'PROFILE_NOT_FOUND', message: 'profile was not found', details: {} })
+    const wrapper = mount(ProfileDetailView, {
+      props: { name: 'missing' },
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('PROFILE_NOT_FOUND')
+    expect(wrapper.text()).toContain('profile was not found')
+    expect(wrapper.find('.profile-edit-form').exists()).toBe(false)
+  })
+
   it('updates only the four fields exposed by the safe form', async () => {
     const wrapper = mountView()
     await flushPromises()
