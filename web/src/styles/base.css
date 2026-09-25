@@ -1,32 +1,101 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
-  color: #202124;
-  background: #eef3f6;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: #191a17;
+  background: #deded8;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --background: #eef3f6;
-  --surface: #ffffff;
-  --surface-subtle: #f8fafb;
-  --border: #e7eaee;
-  --text: #202124;
-  --muted: #77808b;
-  --sidebar: #151719;
-  --success: #399b70;
-  --success-soft: #eaf8f1;
-  --warning: #9a6a13;
-  --warning-soft: #fff5dc;
-  --danger: #b84a52;
-  --danger-soft: #fcecee;
-  --blue: #5f8fd5;
-  --blue-soft: #eaf3ff;
-  --purple: #7d6ee7;
-  --purple-soft: #f1eeff;
+  -webkit-font-smoothing: antialiased;
+
+  --canvas: #deded8;
+  --background: #f4f3ee;
+  --surface: #fbfaf7;
+  --surface-raised: #ffffff;
+  --surface-subtle: #f0efea;
+  --surface-strong: #e9e8e2;
+  --border: #dfded7;
+  --border-strong: #cfcec6;
+  --text: #191a17;
+  --muted: #77776f;
+  --muted-strong: #5d5e57;
+  --ink: #171815;
+  --ink-soft: #292a27;
+  --accent: #dfff5a;
+  --accent-soft: #efffc1;
+  --accent-ink: #1a200b;
+  --success: #288966;
+  --success-soft: #e6f5ee;
+  --warning: #ad711f;
+  --warning-soft: #fff2d8;
+  --danger: #bd5055;
+  --danger-soft: #fae9ea;
+  --blue: #547fae;
+  --blue-soft: #e8f0f9;
+  --purple: #7168be;
+  --purple-soft: #efedf9;
+  --cyan: #439b96;
+  --cyan-soft: #e3f3f1;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-soft: 0 18px 50px rgba(32, 32, 26, 0.07);
+  --shadow-card: 0 8px 24px rgba(32, 32, 26, 0.045);
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 760px; min-height: 100vh; background: var(--background); color: var(--text); }
-button, input { font: inherit; }
-button { cursor: pointer; }
-button:disabled { cursor: wait; opacity: 0.62; }
-h1, h2, p { margin-top: 0; }
-a { color: inherit; }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 720px;
+  min-height: 100%;
+  background: var(--canvas);
+}
+
+body {
+  margin: 0;
+  min-width: 720px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(223, 255, 90, 0.12), transparent 23rem),
+    var(--canvas);
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 3px solid rgba(110, 128, 74, 0.28);
+  outline-offset: 2px;
+}
