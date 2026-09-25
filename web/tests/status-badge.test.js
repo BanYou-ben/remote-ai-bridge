@@ -7,7 +7,7 @@ describe('StatusBadge', () => {
   it.each([
     ['READY', '已就绪', 'status-healthy'],
     ['FAILED', '失败', 'status-error'],
-    ['UNSUPERVISED', '未托管', 'status-warning'],
+    ['UNSUPERVISED', '未运行', 'status-warning'],
   ])('shows the Chinese label for %s with its semantic class', (status, label, className) => {
     const wrapper = mount(StatusBadge, { props: { status } })
     expect(wrapper.text()).toBe(label)

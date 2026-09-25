@@ -2,6 +2,7 @@
 import { useManagedSetup } from '../composables/useManagedSetup.js'
 
 const setup = useManagedSetup()
+const visibleSteps = [1, 2, 4, 5, 6]
 </script>
 
 <template>
@@ -14,8 +15,8 @@ const setup = useManagedSetup()
   </header>
 
   <ol class="wizard-progress" aria-label="设置进度">
-    <li v-for="step in 6" :key="step" :class="{ active: setup.currentStep.value === step, complete: setup.currentStep.value > step }">
-      {{ step }}
+    <li v-for="(step, index) in visibleSteps" :key="step" data-test="wizard-step" :class="{ active: setup.currentStep.value === step, complete: setup.currentStep.value > step }">
+      {{ index + 1 }}
     </li>
   </ol>
 

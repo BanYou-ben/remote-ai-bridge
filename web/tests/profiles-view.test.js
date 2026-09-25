@@ -39,7 +39,7 @@ describe('ProfilesView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('managed-lab')
     expect(wrapper.get('h1').text()).toBe('连接配置')
-    expect(wrapper.text()).toContain('托管')
+    expect(wrapper.text()).toContain('托管配置')
     expect(wrapper.text()).toContain('自动重连')
     expect(wrapper.text()).toContain('已开启')
     expect(wrapper.text()).toContain('example.test')

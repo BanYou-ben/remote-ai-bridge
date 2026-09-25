@@ -101,6 +101,7 @@ describe('SetupView managed setup wizard', () => {
     expect(wrapper.get('h1').text()).toBe('添加托管连接')
     expect(wrapper.text()).toContain('服务器信息')
     expect(wrapper.find('[data-test="password"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-test="wizard-step"]').map((step) => step.text())).toEqual(['1', '2', '3', '4', '5'])
   })
 
   it('prepares a known host without sending a password', async () => {

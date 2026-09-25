@@ -119,6 +119,9 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('运行状态')
     expect(wrapper.text()).toContain('已开启')
     expect(wrapper.text()).toContain('是')
+    expect(wrapper.text()).toContain('未运行')
+    expect(wrapper.text()).toContain('已受监督')
+    expect(wrapper.text()).not.toContain('未托管')
   })
 
   it('reloads profiles and runtime from the backend when Dashboard is remounted', async () => {

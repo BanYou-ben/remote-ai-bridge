@@ -89,7 +89,7 @@ onMounted(refresh)
       </div>
       <div class="runtime-metrics">
         <div><strong>{{ loading.runtime ? '—' : readyCount }}</strong><span>已就绪</span></div>
-        <div><strong>{{ loading.runtime ? '—' : unsupervisedCount }}</strong><span>未托管</span></div>
+        <div><strong>{{ loading.runtime ? '—' : unsupervisedCount }}</strong><span>未运行</span></div>
       </div>
     </section>
   </div>

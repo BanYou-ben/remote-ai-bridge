@@ -5,6 +5,7 @@ import {
   formatCheckStatus,
   formatProfileType,
   formatRuntimeMessage,
+  formatSupervision,
   formatSupervisorState,
 } from '../src/utils/display.js'
 
@@ -17,7 +18,7 @@ describe('display formatters', () => {
     ['FAILED', '失败'],
     ['STOPPING', '正在停止'],
     ['STOPPED', '已停止'],
-    ['UNSUPERVISED', '未托管'],
+    ['UNSUPERVISED', '未运行'],
   ])('maps supervisor state %s', (state, label) => {
     expect(formatSupervisorState(state)).toBe(label)
   })
@@ -29,12 +30,15 @@ describe('display formatters', () => {
     expect(formatBoolean(false)).toBe('否')
     expect(formatBoolean(null)).toBe('未知')
     expect(formatProfileType('legacy')).toBe('旧版')
-    expect(formatProfileType('managed')).toBe('托管')
+    expect(formatProfileType('managed')).toBe('托管配置')
+    expect(formatSupervision(true)).toBe('已受监督')
+    expect(formatSupervision(false)).toBe('未受监督')
+    expect(formatSupervision(null)).toBe('未知')
   })
 
   it.each([
     ['runtime evidence exists but the process identity is absent or mismatched', '存在运行记录，但对应进程不存在或身份不匹配'],
-    ['profile is not supervised and has no runtime evidence', '当前配置未被托管，且没有运行记录'],
+    ['profile is not supervised and has no runtime evidence', '当前连接未运行，且没有运行记录'],
     ['bridge is healthy', '连接运行正常'],
     ['supervision stopped', '连接已停止'],
   ])('maps known runtime message exactly', (message, label) => {

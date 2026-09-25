@@ -28,7 +28,7 @@ onMounted(loadProfiles)
     <div>
       <p class="eyebrow">配置</p>
       <h1>连接配置</h1>
-      <p>查看托管和旧版连接配置；凭据信息不会在此显示。</p>
+      <p>查看托管配置和旧版连接配置；凭据信息不会在此显示。</p>
     </div>
     <div class="header-actions">
       <RouterLink class="primary-button button-link" to="/setup">添加连接</RouterLink>
