@@ -19,3 +19,15 @@ export async function listRuntime() {
 export async function getRuntime(name) {
   return (await client.get(`/runtime/${encodeURIComponent(name)}`)).data
 }
+
+export async function connectRuntime(name) {
+  return (await client.post(`/runtime/${encodeURIComponent(name)}/connect`)).data
+}
+
+export async function disconnectRuntime(name) {
+  return (await client.post(`/runtime/${encodeURIComponent(name)}/disconnect`)).data
+}
+
+export async function runDoctor(name) {
+  return (await client.post(`/doctor/${encodeURIComponent(name)}`)).data
+}

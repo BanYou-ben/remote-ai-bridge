@@ -19,6 +19,8 @@ defineProps({
           <th>进程状态</th>
           <th>远端端口</th>
           <th>说明</th>
+          <th>错误代码</th>
+          <th>重试</th>
         </tr>
       </thead>
       <tbody>
@@ -29,6 +31,8 @@ defineProps({
           <td>{{ formatBoolean(item.process_alive) }}</td>
           <td>{{ item.remote_port ?? '—' }}</td>
           <td class="message-cell">{{ formatRuntimeMessage(item.message) }}</td>
+          <td class="monospace">{{ item.error_code || '—' }}</td>
+          <td>{{ item.retry_in_seconds == null ? '—' : `${item.retry_in_seconds} 秒` }}</td>
         </tr>
       </tbody>
     </table>

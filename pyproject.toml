@@ -19,6 +19,9 @@ test = ["httpx==0.28.1"]
 [project.scripts]
 rab = "app.cli:main"
 
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

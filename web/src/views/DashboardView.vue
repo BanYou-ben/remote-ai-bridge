@@ -3,8 +3,10 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import { getHealth, listProfiles, listRuntime } from '../api/rab.js'
 import BackendHealthCard from '../components/BackendHealthCard.vue'
+import DoctorPanel from '../components/DoctorPanel.vue'
 import ProfileTable from '../components/ProfileTable.vue'
 import RuntimeTable from '../components/RuntimeTable.vue'
+import { useRuntimeControls } from '../composables/useRuntimeControls.js'
 
 const health = ref(null)
 const profiles = ref([])
@@ -14,6 +16,14 @@ const errors = reactive({ health: null, profiles: null, runtime: null })
 const refreshing = computed(() => Object.values(loading).some(Boolean))
 const readyCount = computed(() => runtime.value.filter((item) => item.state === 'READY').length)
 const unsupervisedCount = computed(() => runtime.value.filter((item) => item.state === 'UNSUPERVISED').length)
+
+function updateRuntime(snapshot) {
+  const index = runtime.value.findIndex((item) => item.profile_name === snapshot.profile_name)
+  if (index === -1) runtime.value.push(snapshot)
+  else runtime.value.splice(index, 1, snapshot)
+}
+
+const controls = useRuntimeControls({ onRuntimeUpdate: updateRuntime })
 
 async function loadSection(key, request, target) {
   loading[key] = true
@@ -91,7 +101,15 @@ onMounted(refresh)
     </div>
     <p v-if="loading.profiles" class="state-message">正在加载连接配置……</p>
     <p v-else-if="errors.profiles" class="state-message error-message">连接配置加载失败</p>
-    <ProfileTable v-else :profiles="profiles" />
+    <ProfileTable
+      v-else
+      :profiles="profiles"
+      :action-state="controls.actionState"
+      :action-errors="controls.actionErrors"
+      @connect="controls.connect"
+      @disconnect="controls.disconnect"
+      @doctor="controls.diagnose"
+    />
   </section>
 
   <section class="section-card" aria-labelledby="runtime-title">
@@ -103,4 +121,10 @@ onMounted(refresh)
     <p v-else-if="errors.runtime" class="state-message error-message">运行状态加载失败</p>
     <RuntimeTable v-else :runtime="runtime" />
   </section>
+
+  <DoctorPanel
+    :state="controls.doctor"
+    @close="controls.closeDoctor"
+    @retry="controls.diagnose"
+  />
 </template>
