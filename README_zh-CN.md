@@ -88,3 +88,23 @@ Infrastructure
 
 - [`docs/ARCHITECTURE_PHASE_1.md`](docs/ARCHITECTURE_PHASE_1.md)
 - [`docs/INTEGRATION_TEST_PLAN_PHASE_1.md`](docs/INTEGRATION_TEST_PLAN_PHASE_1.md)
+
+## Web 开发
+
+Phase 4.1 提供仅用于开发、只读的 Vue Dashboard。首先启动后端：
+
+```powershell
+rab serve
+```
+
+根据当前锁定的开发与测试依赖，前端要求 Node.js `^22.22.2`、`^24.15.0` 或 `>=26.0.0`。当前已验证环境为 Node.js `24.19.0`；尚未实测 Node.js 22 和 26。首次检出仓库时，推荐使用已提交的 lockfile 进行干净且可复现的安装：
+
+```powershell
+cd web
+npm ci
+npm run dev
+```
+
+仅在有意更新依赖或 lockfile 时使用 `npm install`。
+
+浏览器访问 `http://127.0.0.1:5173`。浏览器向 Vite 开发服务器发送 `/api` 请求，Vite 再将其代理到 `http://127.0.0.1:8000`，因此无需启用 FastAPI CORS。当前阶段还不是正式的 Web 产品发布。

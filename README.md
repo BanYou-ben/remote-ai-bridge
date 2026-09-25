@@ -89,3 +89,23 @@ Infrastructure
 ```
 
 See `docs/ARCHITECTURE_PHASE_1.md` and `docs/INTEGRATION_TEST_PLAN_PHASE_1.md` for the module boundaries and opt-in real-host test plan.
+
+## Web development
+
+Phase 4.1 provides a development-only, read-only Vue dashboard. Start the backend first:
+
+```powershell
+rab serve
+```
+
+Based on the current locked development and test dependencies, the frontend requires Node.js `^22.22.2`, `^24.15.0`, or `>=26.0.0`. The currently verified environment is Node.js `24.19.0`; Node.js 22 and 26 have not been tested. For a fresh checkout, use the committed lockfile for a clean, reproducible install:
+
+```powershell
+cd web
+npm ci
+npm run dev
+```
+
+Use `npm install` when intentionally updating dependencies or the lockfile.
+
+Open `http://127.0.0.1:5173`. The browser sends `/api` requests to the Vite development server, which proxies them to `http://127.0.0.1:8000`; FastAPI CORS does not need to be enabled. This is not yet a production Web release.
