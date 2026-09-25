@@ -1,15 +1,24 @@
-# Remote AI Bridge — Phase 1 CLI prototype
+# Remote AI Bridge v0.2.0
 
 [English](README.md) | [简体中文](README_zh-CN.md)
 
-Remote AI Bridge creates a user-scoped SSH reverse tunnel from a remote Linux loopback port to an existing Windows loopback HTTP/Mixed proxy. Phase 1 is foreground-only and does not install a service, helper, wrapper, GUI, or Desktop runtime recovery mechanism.
+Remote AI Bridge creates a user-scoped SSH reverse tunnel from a remote Linux loopback port to an existing Windows loopback HTTP/Mixed proxy. Version 0.2.0 provides CLI and local HTTP surfaces over the same managed setup, diagnostics, profile, and runtime services. It does not install a Windows service or GUI.
+
+Version 0.2.0 includes:
+
+- managed SSH bootstrap with explicit host-key fingerprint confirmation;
+- a dedicated per-server RAB key, installed without changing `sshd_config` or using `sudo`;
+- local proxy and loopback-only remote-port discovery during managed setup;
+- foreground tunnel supervision, bounded reconnect, safe process ownership checks, and stale-session protection;
+- persistent managed profiles plus shared CLI and loopback HTTP API access through one service graph.
 
 ## Requirements
 
 - Windows 10/11
 - Python 3.10 or newer
 - Windows OpenSSH `ssh.exe`
-- SSH key or agent authentication and an already trusted server host key
+- Windows `ssh-keygen` for managed key creation
+- For managed bootstrap, password authentication for the current Linux user during initial setup; existing key/agent-based legacy profiles remain supported
 - A loopback HTTP/Mixed proxy without proxy authentication
 - Remote `ss` and `curl`
 
@@ -43,18 +52,22 @@ python -m pytest
 python -m app.cli --help
 ```
 
-## Local development API
+## Local API server
 
-Phase 2.5 includes a local FastAPI runtime control surface. Start it explicitly
-on loopback only:
+Start the v0.2.0 backend with the supported single-process entry point:
 
 ```powershell
-python -m uvicorn app.api.app:app --host 127.0.0.1 --port 8000
+rab serve
+rab serve --port 8000
+rab --state-dir C:\path\to\state serve
 ```
 
-The API currently has no authentication. Do not bind it to `0.0.0.0` or expose
-it directly to a LAN or the Internet. `/health` is process liveness only; it
-does not probe SSH, the proxy, or remote endpoints.
+The default URL is `http://127.0.0.1:8000`. The API currently has no
+authentication, so `rab serve` accepts loopback hosts only and rejects LAN,
+public, and `0.0.0.0` bindings. Do not expose it to a LAN or the Internet.
+Multi-worker and auto-reload modes are intentionally unsupported because the
+RuntimeManager is process-local. `/health` is process liveness only; it does
+not probe SSH, the proxy, or remote endpoints.
 
 The local API also provides profile inspection and safe mutation under
 `/profiles`, managed setup steps under `/setup/host/*`,
@@ -62,5 +75,17 @@ The local API also provides profile inspection and safe mutation under
 `POST /doctor/{name}`. Managed setup accepts an SSH password only for the
 in-process bootstrap call. The password is not persisted, returned, or logged;
 Python immutable strings cannot be reliably erased from memory.
+
+The v0.2.0 backend uses one shared service graph:
+
+```text
+CLI / HTTP API
+       |
+   AppServices
+       |
+ProfileService / SetupService / RuntimeManager / DoctorService
+       |
+Infrastructure
+```
 
 See `docs/ARCHITECTURE_PHASE_1.md` and `docs/INTEGRATION_TEST_PLAN_PHASE_1.md` for the module boundaries and opt-in real-host test plan.

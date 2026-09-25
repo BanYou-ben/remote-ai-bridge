@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 from pathlib import Path
 import sys
 
 from app.bootstrap import create_services
+from app.api.app import create_app
 from app.domain.errors import RABError
 from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile, ProfileValidationError
@@ -20,7 +22,7 @@ from app.services.ssh_config import SSHConfigService
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="rab", description="Remote AI Bridge Phase 1 CLI prototype")
+    parser = argparse.ArgumentParser(prog="rab", description="Remote AI Bridge v0.2 backend CLI")
     parser.add_argument("--state-dir", type=Path, help=argparse.SUPPRESS)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -49,12 +51,17 @@ def build_parser() -> argparse.ArgumentParser:
     for command in ("connect", "disconnect", "status", "doctor"):
         command_parser = subparsers.add_parser(command)
         command_parser.add_argument("name")
+    serve = subparsers.add_parser("serve", help="serve the local-only HTTP API")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "serve":
+            return command_serve(args.state_dir, args.host, args.port)
         services = create_services(args.state_dir)
         profiles = services.profiles
         local = services.local_proxy
@@ -88,6 +95,42 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {redact(str(exc))}", file=sys.stderr)
         return 2
     return 2
+
+
+def command_serve(state_dir: Path | None, host: str, port: int) -> int:
+    validate_api_bind(host, port)
+    import uvicorn
+
+    uvicorn.run(
+        create_app(state_dir),
+        host=host,
+        port=port,
+        workers=1,
+        reload=False,
+    )
+    return 0
+
+
+def validate_api_bind(host: str, port: int) -> None:
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise RABError("API_PORT_INVALID", "API port must be an integer from 1 to 65535")
+    if not isinstance(host, str) or not host:
+        raise _unsafe_api_bind()
+    if host.lower() == "localhost":
+        return
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        raise _unsafe_api_bind() from None
+    if not address.is_loopback:
+        raise _unsafe_api_bind()
+
+
+def _unsafe_api_bind() -> RABError:
+    return RABError(
+        "API_BIND_UNSAFE",
+        "API authentication is not available; the server may only bind to a loopback address",
+    )
 
 
 def command_profile_add(args, profiles: ProfileService, local: LocalProxyService) -> int:
