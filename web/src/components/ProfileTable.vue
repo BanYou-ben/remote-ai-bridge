@@ -45,6 +45,7 @@ defineEmits(['connect', 'disconnect', 'doctor'])
                 <button type="button" :disabled="actionState[profile.name] && actionState[profile.name] !== 'idle'" :data-test="`doctor-${profile.name}`" @click="$emit('doctor', profile.name)">
                   {{ actionState[profile.name] === 'diagnosing' ? '诊断中…' : '诊断' }}
                 </button>
+                <RouterLink class="manage-link" :data-test="`manage-${profile.name}`" :to="`/profiles/${encodeURIComponent(profile.name)}`">管理</RouterLink>
               </div>
             </td>
           </tr>
@@ -59,3 +60,20 @@ defineEmits(['connect', 'disconnect', 'doctor'])
     </table>
   </div>
 </template>
+
+<style scoped>
+.manage-link {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: #454b51;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.manage-link:hover { background: #f4f6f7; }
+</style>
