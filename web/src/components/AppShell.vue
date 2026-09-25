@@ -3,12 +3,9 @@
     <aside class="sidebar" aria-label="Primary navigation">
       <RouterLink class="brand" to="/" aria-label="Remote AI Bridge 首页">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" role="img">
-            <path d="M7.5 7.25h3.25v2H7.5a2.75 2.75 0 0 0 0 5.5h3.25v2H7.5a4.75 4.75 0 1 1 0-9.5Zm5.75 0h3.25a4.75 4.75 0 1 1 0 9.5h-3.25v-2h3.25a2.75 2.75 0 1 0 0-5.5h-3.25v-2Zm-4 3.75h5.5v2h-5.5v-2Z"/>
-          </svg>
+          <img class="brand-logo-mark" src="/rab-logo-mark.svg" alt="" />
         </span>
         <strong>RAB</strong>
-        <span>Remote Bridge</span>
       </RouterLink>
 
       <nav class="primary-nav">
@@ -42,8 +39,11 @@
 
     <section class="workspace">
       <header class="workspace-bar">
-        <div class="workspace-title">
-          <span>REMOTE AI BRIDGE</span>
+        <div class="workspace-brand">
+          <RouterLink class="workspace-logo-link" to="/" aria-label="Remote AI Bridge 首页">
+            <img class="workspace-logo" src="/rab-logo-lockup.svg" alt="Remote AI Bridge" />
+          </RouterLink>
+          <span class="workspace-brand-separator" aria-hidden="true"></span>
           <strong>远程连接控制台</strong>
         </div>
         <div class="workspace-meta">
