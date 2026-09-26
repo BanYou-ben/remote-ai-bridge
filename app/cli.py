@@ -22,7 +22,7 @@ from app.services.ssh_config import SSHConfigService
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="rab", description="Remote AI Bridge v0.2 backend CLI")
+    parser = argparse.ArgumentParser(prog="rab", description="Remote AI Bridge v0.4.0 backend CLI")
     parser.add_argument("--state-dir", type=Path, help=argparse.SUPPRESS)
     subparsers = parser.add_subparsers(dest="command", required=True)
 

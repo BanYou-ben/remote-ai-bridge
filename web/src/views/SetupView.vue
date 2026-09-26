@@ -114,7 +114,7 @@ const currentVisibleStep = computed(
           </label>
           <label>
             <span>主机地址</span>
-            <input v-model.trim="setup.form.host" data-test="host" required autocomplete="off" placeholder="例如：10.102.128.6">
+            <input v-model.trim="setup.form.host" data-test="host" required autocomplete="off" placeholder="例如：example.test">
           </label>
           <label>
             <span>用户名</span>
