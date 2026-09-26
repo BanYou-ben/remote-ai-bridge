@@ -2887,3 +2887,340 @@ tbody tr:hover {
     display: none;
   }
 }
+
+
+/* =========================================================
+   Phase 4.5 — Visual calibration
+   Larger working scale, fewer repeated cards, stronger product rhythm.
+   ========================================================= */
+
+.main-content {
+  max-width: 1680px;
+  padding: 44px 52px 72px;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  font-size: clamp(34px, 3.15vw, 42px);
+}
+
+.page-header p:last-child {
+  font-size: 14px;
+}
+
+.primary-button,
+.secondary-button {
+  height: 44px;
+  padding-inline: 18px;
+  font-size: 13px;
+}
+
+.dashboard-focus-grid {
+  gap: 18px;
+}
+
+.connection-hero {
+  min-height: 338px;
+  padding: 30px 31px 27px;
+}
+
+.connection-hero.is-empty {
+  min-height: 292px;
+}
+
+.connection-hero.is-empty .connection-empty {
+  min-height: 135px;
+  padding-top: 34px;
+}
+
+.connection-hero h2 {
+  font-size: clamp(27px, 2.45vw, 36px);
+}
+
+.connection-target,
+.snapshot-label strong {
+  font-size: 12px;
+}
+
+.snapshot-label span,
+.connection-empty-copy span,
+.dashboard-empty-state p {
+  font-size: 11px;
+}
+
+.system-snapshot {
+  min-height: 338px;
+  padding: 28px 26px;
+}
+
+.connection-hero.is-empty + .system-snapshot {
+  min-height: 292px;
+}
+
+.section-card {
+  border-color: rgba(203, 202, 194, 0.54);
+  box-shadow: 0 6px 18px rgba(32, 32, 26, 0.035);
+}
+
+.dashboard-section {
+  padding: 28px 27px 24px;
+}
+
+.connections-empty-workspace {
+  min-height: 520px;
+  padding: 60px 52px 42px;
+  border-color: rgba(203, 202, 194, 0.54);
+}
+
+.connections-empty-workspace h2 {
+  font-size: 31px;
+}
+
+.connections-empty-workspace > p:not(.panel-kicker) {
+  max-width: 660px;
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.empty-capabilities {
+  width: min(930px, 100%);
+  gap: 16px;
+  margin-top: 48px;
+}
+
+.empty-capabilities > div {
+  min-height: 136px;
+  padding: 21px;
+  border-color: rgba(216, 215, 207, 0.58);
+  background: rgba(246, 245, 240, 0.54);
+}
+
+.empty-capabilities strong {
+  font-size: 13px;
+}
+
+.empty-capabilities p {
+  font-size: 11px;
+}
+
+.setup-page {
+  width: min(1380px, 100%);
+}
+
+.setup-page-header {
+  margin-bottom: 27px;
+}
+
+.setup-progress-shell {
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 32px;
+  padding: 20px 24px;
+  border-color: rgba(203, 202, 194, 0.54);
+  box-shadow: 0 5px 16px rgba(32, 32, 26, 0.035);
+}
+
+.setup-progress-copy strong {
+  font-size: 13px;
+}
+
+.setup-progress-copy span {
+  font-size: 10px;
+}
+
+.setup-progress-track li {
+  width: 38px;
+  height: 38px;
+  font-size: 13px;
+}
+
+.setup-progress-track::before {
+  top: 18px;
+}
+
+.setup-progress-track li::after {
+  top: 47px;
+  font-size: 9px;
+}
+
+.setup-workspace {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+}
+
+.setup-main-card {
+  min-height: 590px;
+  padding: 34px 36px 32px;
+  border-color: rgba(203, 202, 194, 0.54);
+  box-shadow: 0 7px 22px rgba(32, 32, 26, 0.04);
+}
+
+.setup-form,
+.setup-step {
+  gap: 24px;
+}
+
+.setup-section-heading {
+  gap: 16px;
+}
+
+.setup-section-number {
+  width: 46px;
+  height: 46px;
+  flex-basis: 46px;
+  border-radius: 14px;
+  font-size: 12px;
+}
+
+.setup-section-heading h2 {
+  font-size: 25px;
+}
+
+.setup-section-heading > div:last-child > p:last-child {
+  font-size: 11px;
+}
+
+.setup-form label > span {
+  font-size: 11px;
+}
+
+.setup-form input:not([type='checkbox']) {
+  height: 48px;
+  padding-inline: 15px;
+  font-size: 13px;
+}
+
+.setup-inline-note {
+  padding: 16px 17px;
+  border-color: rgba(229, 227, 213, 0.7);
+}
+
+.setup-inline-note strong {
+  font-size: 11px;
+}
+
+.setup-inline-note p {
+  font-size: 10px;
+}
+
+.setup-guide-panel {
+  top: 96px;
+  gap: 14px;
+}
+
+.setup-guide-current {
+  min-height: 186px;
+  padding: 25px;
+}
+
+.setup-guide-step {
+  margin-top: 23px;
+  font-size: 32px;
+}
+
+.setup-guide-current h2 {
+  font-size: 19px;
+}
+
+.setup-guide-current > p:last-child {
+  font-size: 10px;
+}
+
+.setup-guide-context {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(203, 202, 194, 0.54);
+  border-radius: 18px;
+  background: rgba(203, 202, 194, 0.42);
+  box-shadow: 0 5px 16px rgba(32, 32, 26, 0.03);
+}
+
+.setup-guide-context section {
+  padding: 17px 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.guide-context-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #92938a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+
+.setup-guide-context ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-guide-context li {
+  position: relative;
+  padding-left: 15px;
+  color: #565850;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.setup-guide-context li::before {
+  content: "";
+  position: absolute;
+  top: 0.56em;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.setup-guide-context section:last-child li::before {
+  background: #c7c7bf;
+}
+
+.setup-security-card {
+  padding: 19px;
+  border-color: rgba(220, 232, 225, 0.72);
+}
+
+.setup-security-card strong {
+  font-size: 11px;
+}
+
+.setup-security-card > div > p:last-child {
+  font-size: 9px;
+}
+
+.panel-kicker,
+.section-kicker,
+.dashboard-page-header .eyebrow,
+.connections-page-header .eyebrow,
+.setup-page-header .eyebrow {
+  letter-spacing: 0.13em;
+}
+
+@media (max-width: 1180px) {
+  .main-content {
+    padding: 36px 34px 60px;
+  }
+
+  .setup-page {
+    width: 100%;
+  }
+}
+
+@media (max-width: 1060px) {
+  .setup-guide-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .setup-guide-context {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+}

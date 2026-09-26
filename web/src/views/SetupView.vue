@@ -7,11 +7,46 @@ const setup = useManagedSetup()
 const visibleSteps = [1, 2, 4, 5, 6]
 
 const stepMeta = [
-  { internal: 1, label: '服务器', title: '服务器信息', note: '填写主机、用户名与 SSH 端口。' },
-  { internal: 2, label: '验证', title: '验证主机身份', note: '核对 SSH 主机密钥指纹。' },
-  { internal: 4, label: '代理', title: '检测本地代理', note: '选择后端确认可用的本地代理。' },
-  { internal: 5, label: '凭据', title: '创建托管连接', note: '仅在本次请求中使用 SSH 密码。' },
-  { internal: 6, label: '完成', title: '连接配置已创建', note: '检查结果并进入配置详情。' },
+  {
+    internal: 1,
+    label: '服务器',
+    title: '服务器信息',
+    note: '填写主机、用户名与 SSH 端口。',
+    does: ['建立 SSH 握手', '读取服务器 Host Key'],
+    avoids: ['发送 SSH 密码', '修改远端服务器'],
+  },
+  {
+    internal: 2,
+    label: '验证',
+    title: '验证主机身份',
+    note: '核对 SSH 主机密钥指纹。',
+    does: ['展示实际 Host Key 指纹', '等待你的显式确认'],
+    avoids: ['自动信任未知主机', '跳过指纹确认'],
+  },
+  {
+    internal: 4,
+    label: '代理',
+    title: '检测本地代理',
+    note: '选择后端确认可用的本地代理。',
+    does: ['检测候选代理端口', '验证 TCP / CONNECT / Endpoint'],
+    avoids: ['选择失败候选', '修改系统代理设置'],
+  },
+  {
+    internal: 5,
+    label: '凭据',
+    title: '创建托管连接',
+    note: '仅在本次请求中使用 SSH 密码。',
+    does: ['创建受控 SSH 凭据', '保存明确的连接参数'],
+    avoids: ['持久化网页密码', '在页面展示私钥内容'],
+  },
+  {
+    internal: 6,
+    label: '完成',
+    title: '连接配置已创建',
+    note: '检查结果并进入配置详情。',
+    does: ['展示最终连接参数', '允许进入配置详情'],
+    avoids: ['自动启动未确认操作', '暴露敏感凭据'],
+  },
 ]
 
 const currentMeta = computed(
@@ -287,22 +322,20 @@ const currentVisibleStep = computed(
           <p>{{ currentMeta.note }}</p>
         </div>
 
-        <ol class="setup-guide-list">
-          <li
-            v-for="(meta, index) in stepMeta"
-            :key="meta.internal"
-            :class="{
-              active: setup.currentStep.value === meta.internal,
-              complete: setup.currentStep.value > meta.internal,
-            }"
-          >
-            <span>{{ index + 1 }}</span>
-            <div>
-              <strong>{{ meta.label }}</strong>
-              <small>{{ meta.title }}</small>
-            </div>
-          </li>
-        </ol>
+        <div class="setup-guide-context">
+          <section>
+            <span class="guide-context-label">本步骤会</span>
+            <ul>
+              <li v-for="item in currentMeta.does" :key="item">{{ item }}</li>
+            </ul>
+          </section>
+          <section>
+            <span class="guide-context-label">本步骤不会</span>
+            <ul>
+              <li v-for="item in currentMeta.avoids" :key="item">{{ item }}</li>
+            </ul>
+          </section>
+        </div>
 
         <div class="setup-security-card">
           <span class="security-lock-mark" aria-hidden="true"></span>

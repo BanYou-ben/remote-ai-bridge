@@ -111,7 +111,7 @@ onMounted(refresh)
   </header>
 
   <div class="dashboard-focus-grid">
-    <section class="connection-hero" aria-labelledby="current-connection-title">
+    <section class="connection-hero" :class="{ 'is-empty': !currentProfile }" aria-labelledby="current-connection-title">
       <div class="connection-hero-top">
         <div>
           <p class="panel-kicker">CURRENT CONNECTION</p>
