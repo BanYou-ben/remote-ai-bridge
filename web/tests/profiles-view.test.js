@@ -13,7 +13,7 @@ describe('ProfilesView', () => {
     listProfiles.mockResolvedValue([])
     const wrapper = mount(ProfilesView)
     await flushPromises()
-    expect(wrapper.text()).toContain('暂无连接配置')
+    expect(wrapper.text()).toContain('还没有连接配置')
   })
 
   it('renders managed metadata without key or password content', async () => {
