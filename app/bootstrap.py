@@ -9,11 +9,15 @@ from app.infrastructure.profile_store import ProfileStore
 from app.infrastructure.host_key_store import HostKeyStore
 from app.infrastructure.ssh_bootstrap import SSHBootstrapAdapter
 from app.infrastructure.ssh_key_store import SSHKeyStore
+from app.services.agent.registry_factory import build_agent_tool_registry
+from app.services.agent.tool_registry import ToolRegistry
 from app.services.doctor import DoctorService
 from app.services.local_proxy import LocalProxyService
+from app.services.network_transport import NetworkTransportService
 from app.services.profile_service import ProfileService
 from app.services.remote_probe import RemoteProbeService
 from app.services.remote_port import RemotePortSelector
+from app.services.remote_system import RemoteSystemService
 from app.services.runtime_manager import RuntimeManager
 from app.services.setup_service import SetupService
 from app.services.ssh_config import SSHConfigService, locate_ssh
@@ -31,6 +35,9 @@ class AppServices:
     doctor: DoctorService
     runtime_manager: RuntimeManager
     setup: SetupService
+    network_transport: NetworkTransportService
+    remote_system: RemoteSystemService
+    agent_tool_registry: ToolRegistry
 
 
 def create_services(state_dir: Path | None = None) -> AppServices:
@@ -42,6 +49,8 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         raise RuntimeError("Windows OpenSSH ssh.exe was not found on PATH")
     local_proxy = LocalProxyService()
     remote_probe = RemoteProbeService(runner, ssh_executable, state_root=store.root)
+    network_transport = NetworkTransportService()
+    remote_system = RemoteSystemService(runner, remote_probe)
     ssh_config = SSHConfigService(runner, ssh_executable, state_root=store.root)
     tunnel_manager = TunnelManager(runner, inspector, store, remote_probe, ssh_executable)
     doctor = DoctorService(local_proxy, ssh_config, tunnel_manager, remote_probe)
@@ -58,6 +67,17 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         remote_ports=RemotePortSelector(remote_probe),
         profiles=profiles,
     )
+    agent_tool_registry = build_agent_tool_registry(
+        profiles=profiles,
+        runtime_manager=runtime_manager,
+        doctor=doctor,
+        local_proxy=local_proxy,
+        ssh_config=ssh_config,
+        tunnel_manager=tunnel_manager,
+        remote_probe=remote_probe,
+        network_transport=network_transport,
+        remote_system=remote_system,
+    )
     return AppServices(
         store=store,
         profiles=profiles,
@@ -68,4 +88,7 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         doctor=doctor,
         runtime_manager=runtime_manager,
         setup=setup,
+        network_transport=network_transport,
+        remote_system=remote_system,
+        agent_tool_registry=agent_tool_registry,
     )
