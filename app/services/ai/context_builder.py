@@ -10,6 +10,7 @@ from app.services.ai.schemas import (
     DiagnosticRuntimeSummary,
 )
 from app.services.doctor import DoctorReport
+from app.services.local_proxy import LocalProxyReport
 from app.redaction import redact
 
 
@@ -51,31 +52,44 @@ class DiagnosticContextBuilder:
             evidence=evidence,
         )
 
-    @staticmethod
-    def _evidence(evidence_id: str, check: CheckResult) -> DiagnosticEvidence:
-        return DiagnosticEvidence(
-            id=evidence_id,
-            category="connection",
-            name=check.name,
-            status=check.status.value,
-            detail=check.detail,
-            error_code=check.error_code,
-            http_status=check.http_status,
-        )
-
-
 def build_doctor_evidence(doctor: DoctorReport) -> tuple[DiagnosticEvidence, ...]:
     """Convert a Doctor report using the canonical, explicit evidence mapping."""
-    checks = (
-        ("connection.proxy.tcp", doctor.local.tcp),
-        ("connection.proxy.handshake", doctor.local.handshake),
-        ("connection.proxy.endpoint", doctor.local.endpoint),
-        ("connection.ssh.config", doctor.ssh),
-        ("connection.tunnel.process", doctor.tunnel),
-        ("connection.remote.listener", doctor.remote_listener),
-        ("connection.remote.endpoint", doctor.remote_endpoint),
+    return (
+        *build_local_proxy_evidence(doctor.local),
+        build_diagnostic_evidence("connection.ssh.config", "connection", doctor.ssh),
+        build_diagnostic_evidence("connection.tunnel.process", "connection", doctor.tunnel),
+        build_diagnostic_evidence(
+            "connection.remote.listener", "connection", doctor.remote_listener
+        ),
+        build_diagnostic_evidence(
+            "connection.remote.endpoint", "connection", doctor.remote_endpoint
+        ),
     )
-    return tuple(
-        DiagnosticContextBuilder._evidence(evidence_id, check)
-        for evidence_id, check in checks
+
+
+def build_local_proxy_evidence(report: LocalProxyReport) -> tuple[DiagnosticEvidence, ...]:
+    return (
+        build_diagnostic_evidence("connection.proxy.tcp", "connection", report.tcp),
+        build_diagnostic_evidence(
+            "connection.proxy.handshake", "connection", report.handshake
+        ),
+        build_diagnostic_evidence(
+            "connection.proxy.endpoint", "connection", report.endpoint
+        ),
+    )
+
+
+def build_diagnostic_evidence(
+    evidence_id: str,
+    category: str,
+    check: CheckResult,
+) -> DiagnosticEvidence:
+    return DiagnosticEvidence(
+        id=evidence_id,
+        category=category,
+        name=check.name,
+        status=check.status.value,
+        detail=check.detail,
+        error_code=check.error_code,
+        http_status=check.http_status,
     )

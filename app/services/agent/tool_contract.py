@@ -84,11 +84,25 @@ class Tool:
 
 
 def profile_tool_definition(name: str, description: str) -> ToolDefinition:
+    return profile_scoped_tool_definition(
+        name,
+        description,
+        category="connection",
+    )
+
+
+def profile_scoped_tool_definition(
+    name: str,
+    description: str,
+    *,
+    category: str,
+    risk_level: str = "read_only",
+) -> ToolDefinition:
     return ToolDefinition(
         name=name,
         description=description,
-        category="connection",
-        risk_level="read_only",
+        category=category,
+        risk_level=risk_level,
         input_schema=ProfileNameArguments.model_json_schema(),
     )
 

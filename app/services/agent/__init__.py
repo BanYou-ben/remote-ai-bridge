@@ -1,6 +1,7 @@
 """Read-only agent tool contracts and connection inspection tools."""
 
 from app.services.agent.connection_tools import build_connection_tools
+from app.services.agent.network_tools import build_network_tools
 from app.services.agent.agent_contract import (
     AgentModel,
     AgentModelError,
@@ -20,6 +21,7 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "build_connection_tools",
+    "build_network_tools",
     "AgentModel",
     "AgentModelError",
     "AgentRequest",
