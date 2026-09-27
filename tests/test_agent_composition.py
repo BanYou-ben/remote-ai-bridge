@@ -12,19 +12,23 @@ from app.services.doctor import DoctorReport
 from app.services.local_proxy import LocalProxyReport
 from app.services.network_transport import NetworkTransportReport, NetworkTransportService
 from app.services.remote_system import RemoteMemoryReport, RemoteSystemService
+from app.services.remote_runtime import RemoteLoadReport, RemoteRuntimeService
 
 
 EXPECTED_TOOL_NAMES = [
     "check_local_proxy",
     "check_remote_disk",
     "check_remote_endpoint",
+    "check_remote_failed_services",
     "check_remote_listener",
+    "check_remote_load",
     "check_remote_memory",
     "check_ssh_config",
     "check_ssh_transport",
     "check_tunnel_process",
     "get_profile_summary",
     "get_remote_system_info",
+    "get_remote_top_processes",
     "get_runtime_status",
     "run_doctor",
 ]
@@ -158,6 +162,29 @@ class FakeRemoteSystem:
         raise AssertionError("not used by composition smoke")
 
 
+class FakeRemoteRuntime:
+    def __init__(self, calls: list[str]) -> None:
+        self.calls = calls
+
+    def check_load(self, profile: Profile) -> RemoteLoadReport:
+        self.calls.append(f"load:{profile.name}")
+        return RemoteLoadReport(
+            CheckResult("Remote load", CheckStatus.PASS, "safe"),
+            0.5,
+            0.4,
+            0.3,
+            4,
+            0.125,
+        )
+
+    def get_top_processes(self, profile: Profile):
+        self.calls.append(f"processes:{profile.name}")
+        raise AssertionError("not used by composition smoke")
+
+    def check_failed_services(self, profile: Profile):
+        self.calls.append(f"services:{profile.name}")
+        raise AssertionError("not used by composition smoke")
+
 def _dependencies(calls: list[str]) -> dict[str, object]:
     return {
         "profiles": FakeProfiles(calls),
@@ -169,6 +196,7 @@ def _dependencies(calls: list[str]) -> dict[str, object]:
         "remote_probe": FakeRemoteProbe(calls),
         "network_transport": FakeNetworkTransport(calls),
         "remote_system": FakeRemoteSystem(calls),
+        "remote_runtime": FakeRemoteRuntime(calls),
     }
 
 
@@ -179,6 +207,9 @@ def test_create_services_exposes_agent_diagnostic_dependencies(tmp_path, monkeyp
     assert isinstance(services.remote_system, RemoteSystemService)
     assert services.remote_system.runner is services.remote_probe.runner
     assert services.remote_system.remote_probe is services.remote_probe
+    assert isinstance(services.remote_runtime, RemoteRuntimeService)
+    assert services.remote_runtime.runner is services.remote_probe.runner
+    assert services.remote_runtime.remote_probe is services.remote_probe
     assert services.agent_tool_registry is not None
 
 
@@ -206,13 +237,14 @@ def test_create_services_passes_its_exact_service_instances_to_registry_factory(
         "remote_probe": services.remote_probe,
         "network_transport": services.network_transport,
         "remote_system": services.remote_system,
+        "remote_runtime": services.remote_runtime,
     }
 
 
 def test_registry_factory_registers_exact_complete_tool_set() -> None:
     registry = build_agent_tool_registry(**_dependencies([]))
     assert [item.name for item in registry.list_definitions()] == EXPECTED_TOOL_NAMES
-    assert len(registry.list_definitions()) == 12
+    assert len(registry.list_definitions()) == 15
 
 
 def test_registry_factory_registers_only_read_only_tools() -> None:
@@ -225,7 +257,7 @@ def test_registry_category_distribution_is_stable() -> None:
     categories = [item.category for item in registry.list_definitions()]
     assert categories.count("connection") == 8
     assert categories.count("network") == 1
-    assert categories.count("system") == 3
+    assert categories.count("system") == 6
 
 
 def test_registry_has_no_action_or_shell_tools() -> None:
@@ -257,7 +289,7 @@ def test_registry_definition_order_is_repeatable() -> None:
 def test_registry_factory_has_no_execution_side_effects() -> None:
     calls: list[str] = []
     registry = build_agent_tool_registry(**_dependencies(calls))
-    assert len(registry.list_definitions()) == 12
+    assert len(registry.list_definitions()) == 15
     assert calls == []
 
 
@@ -266,11 +298,20 @@ def test_factory_composition_smoke_executes_connection_and_system_tools() -> Non
     registry = build_agent_tool_registry(**_dependencies(calls))
     profile = registry.execute("get_profile_summary", {"profile_name": "server"})
     memory = registry.execute("check_remote_memory", {"profile_name": "server"})
+    load = registry.execute("check_remote_load", {"profile_name": "server"})
     assert profile.ok is True
     assert profile.data["name"] == "server"
     assert memory.ok is True
     assert memory.data["evidence"][0]["id"] == "system.remote.memory"
-    assert calls == ["profiles:server", "profiles:server", "memory:server"]
+    assert load.ok is True
+    assert load.data["evidence"][0]["id"] == "system.remote.load"
+    assert calls == [
+        "profiles:server",
+        "profiles:server",
+        "memory:server",
+        "profiles:server",
+        "load:server",
+    ]
 
 
 def test_bootstrap_does_not_construct_an_agent_model() -> None:
@@ -286,4 +327,4 @@ def test_doctor_fixture_uses_canonical_evidence_without_execution_during_factory
     assert calls == []
     report = dependencies["doctor"].run(_profile())
     assert len(build_doctor_evidence(report)) == 7
-    assert len(registry.list_definitions()) == 12
+    assert len(registry.list_definitions()) == 15

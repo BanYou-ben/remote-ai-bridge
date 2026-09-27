@@ -3,6 +3,7 @@
 from app.services.agent.connection_tools import build_connection_tools
 from app.services.agent.network_tools import build_network_tools
 from app.services.agent.registry_factory import build_agent_tool_registry
+from app.services.agent.runtime_tools import build_runtime_tools
 from app.services.agent.system_tools import build_system_tools
 from app.services.agent.agent_contract import (
     AgentModel,
@@ -25,6 +26,7 @@ __all__ = [
     "build_connection_tools",
     "build_network_tools",
     "build_agent_tool_registry",
+    "build_runtime_tools",
     "build_system_tools",
     "AgentModel",
     "AgentModelError",

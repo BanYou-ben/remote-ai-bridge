@@ -17,6 +17,7 @@ from app.services.network_transport import NetworkTransportService
 from app.services.profile_service import ProfileService
 from app.services.remote_probe import RemoteProbeService
 from app.services.remote_port import RemotePortSelector
+from app.services.remote_runtime import RemoteRuntimeService
 from app.services.remote_system import RemoteSystemService
 from app.services.runtime_manager import RuntimeManager
 from app.services.setup_service import SetupService
@@ -37,6 +38,7 @@ class AppServices:
     setup: SetupService
     network_transport: NetworkTransportService
     remote_system: RemoteSystemService
+    remote_runtime: RemoteRuntimeService
     agent_tool_registry: ToolRegistry
 
 
@@ -51,6 +53,7 @@ def create_services(state_dir: Path | None = None) -> AppServices:
     remote_probe = RemoteProbeService(runner, ssh_executable, state_root=store.root)
     network_transport = NetworkTransportService()
     remote_system = RemoteSystemService(runner, remote_probe)
+    remote_runtime = RemoteRuntimeService(runner, remote_probe)
     ssh_config = SSHConfigService(runner, ssh_executable, state_root=store.root)
     tunnel_manager = TunnelManager(runner, inspector, store, remote_probe, ssh_executable)
     doctor = DoctorService(local_proxy, ssh_config, tunnel_manager, remote_probe)
@@ -77,6 +80,7 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         remote_probe=remote_probe,
         network_transport=network_transport,
         remote_system=remote_system,
+        remote_runtime=remote_runtime,
     )
     return AppServices(
         store=store,
@@ -90,5 +94,6 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         setup=setup,
         network_transport=network_transport,
         remote_system=remote_system,
+        remote_runtime=remote_runtime,
         agent_tool_registry=agent_tool_registry,
     )
