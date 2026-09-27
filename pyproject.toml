@@ -11,6 +11,7 @@ dependencies = [
     "paramiko==5.0.0",
     "fastapi==0.141.1",
     "uvicorn==0.50.2",
+    "openai==3.19.2",
 ]
 
 [project.optional-dependencies]

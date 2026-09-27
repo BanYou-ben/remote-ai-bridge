@@ -74,10 +74,11 @@ def structured_diagnosis(
         "connection.tunnel.process",
     ),
     confidence: str = "high",
+    diagnosis_stage: str = "connection.tunnel",
 ) -> StructuredDiagnosis:
     return StructuredDiagnosis(
         summary="The tunnel process exited before the remote listener became available.",
-        diagnosis_stage="connection.tunnel",
+        diagnosis_stage=diagnosis_stage,
         evidence_ids=evidence_ids,
         possible_causes=("The tunnel process exited during startup.",),
         recommended_actions=("Retry the connection and run diagnostics again.",),
@@ -115,6 +116,60 @@ def test_invalid_confidence_is_rejected() -> None:
 
 def test_existing_evidence_ids_pass_context_validation() -> None:
     validate_diagnosis(structured_diagnosis(), diagnostic_context())
+
+
+def test_stage_domain_matches_referenced_connection_category() -> None:
+    validate_diagnosis(
+        structured_diagnosis(
+            diagnosis_stage="connection.tunnel",
+            evidence_ids=("connection.tunnel.process",),
+        ),
+        diagnostic_context(),
+    )
+
+
+def test_cross_domain_stage_is_rejected_by_evidence_category() -> None:
+    diagnosis = structured_diagnosis(
+        diagnosis_stage="network.dns",
+        evidence_ids=("connection.tunnel.process",),
+    )
+
+    with pytest.raises(DiagnosisValidationError, match="evidence categories"):
+        validate_diagnosis(diagnosis, diagnostic_context())
+
+
+def test_unknown_stage_can_reference_any_real_evidence_category() -> None:
+    validate_diagnosis(
+        structured_diagnosis(
+            diagnosis_stage="unknown",
+            evidence_ids=("connection.tunnel.process",),
+        ),
+        diagnostic_context(),
+    )
+
+
+def test_non_connection_stage_is_grounded_by_matching_evidence_category() -> None:
+    context = diagnostic_context()
+    network_evidence = DiagnosticEvidence(
+        id="network.dns",
+        category="network",
+        name="DNS resolution",
+        status="FAIL",
+        detail="name resolution failed",
+        error_code="DNS_FAILED",
+        http_status=None,
+    )
+    context = DiagnosticContext(
+        profile=context.profile,
+        runtime=context.runtime,
+        evidence=(network_evidence,),
+    )
+    diagnosis = structured_diagnosis(
+        diagnosis_stage="network.dns",
+        evidence_ids=("network.dns",),
+    )
+
+    validate_diagnosis(diagnosis, context)
 
 
 def test_unknown_evidence_id_is_rejected() -> None:
@@ -178,6 +233,44 @@ def test_empty_diagnosis_stage_is_rejected() -> None:
             recommended_actions=(),
             confidence="low",
         )
+
+
+def test_empty_evidence_ids_are_rejected() -> None:
+    with pytest.raises(DiagnosisValidationError, match="at least one"):
+        structured_diagnosis(evidence_ids=())
+
+
+@pytest.mark.parametrize(
+    "diagnosis_stage",
+    ("SSH Problem", "probably tunnel", "连接失败", "connection"),
+)
+def test_diagnosis_stage_rejects_free_text(diagnosis_stage: str) -> None:
+    with pytest.raises(DiagnosisValidationError, match="lowercase namespace"):
+        StructuredDiagnosis(
+            summary="The diagnosis stage is invalid.",
+            diagnosis_stage=diagnosis_stage,
+            evidence_ids=("connection.ssh.config",),
+            possible_causes=(),
+            recommended_actions=(),
+            confidence="low",
+        )
+
+
+@pytest.mark.parametrize(
+    "diagnosis_stage",
+    ("unknown", "connection.proxy", "network.dns", "system.memory", "application.http"),
+)
+def test_diagnosis_stage_accepts_machine_readable_namespaces(diagnosis_stage: str) -> None:
+    diagnosis = StructuredDiagnosis(
+        summary="A machine-readable stage is present.",
+        diagnosis_stage=diagnosis_stage,
+        evidence_ids=("connection.ssh.config",),
+        possible_causes=(),
+        recommended_actions=(),
+        confidence="low",
+    )
+
+    assert diagnosis.diagnosis_stage == diagnosis_stage
 
 
 @pytest.mark.parametrize(

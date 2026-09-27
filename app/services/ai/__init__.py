@@ -7,6 +7,8 @@ from app.services.ai.diagnosis import (
     resolve_evidence,
     validate_diagnosis,
 )
+from app.services.ai.diagnosis_provider import AIProviderError, DiagnosisProvider
+from app.services.ai.diagnostic_service import AIDiagnosticService
 from app.services.ai.schemas import (
     DiagnosticContext,
     DiagnosticEvidence,
@@ -20,6 +22,9 @@ __all__ = [
     "DiagnosticEvidence",
     "DiagnosticProfileSummary",
     "DiagnosticRuntimeSummary",
+    "AIDiagnosticService",
+    "AIProviderError",
+    "DiagnosisProvider",
     "DiagnosisValidationError",
     "StructuredDiagnosis",
     "resolve_evidence",

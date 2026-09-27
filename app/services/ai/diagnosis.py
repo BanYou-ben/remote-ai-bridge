@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from app.services.ai.schemas import DiagnosticContext, DiagnosticEvidence
 
 
 VALID_CONFIDENCE_LEVELS: frozenset[str] = frozenset({"low", "medium", "high"})
+DIAGNOSIS_STAGE_RE = re.compile(
+    r"^(?:unknown|[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)$"
+)
 
 
 class DiagnosisValidationError(ValueError):
@@ -29,6 +33,8 @@ class StructuredDiagnosis:
             raise DiagnosisValidationError("diagnosis summary must not be empty")
         if not isinstance(self.diagnosis_stage, str) or not self.diagnosis_stage.strip():
             raise DiagnosisValidationError("diagnosis stage must not be empty")
+        if not DIAGNOSIS_STAGE_RE.fullmatch(self.diagnosis_stage):
+            raise DiagnosisValidationError("diagnosis stage must be a lowercase namespace or unknown")
         if not isinstance(self.confidence, str) or self.confidence not in VALID_CONFIDENCE_LEVELS:
             raise DiagnosisValidationError("diagnosis confidence must be low, medium, or high")
         self._validate_strings("evidence_ids", self.evidence_ids)
@@ -36,6 +42,8 @@ class StructuredDiagnosis:
         self._validate_strings("recommended_actions", self.recommended_actions)
         if len(self.evidence_ids) != len(set(self.evidence_ids)):
             raise DiagnosisValidationError("diagnosis evidence IDs must not contain duplicates")
+        if not self.evidence_ids:
+            raise DiagnosisValidationError("diagnosis must reference at least one evidence ID")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -58,7 +66,8 @@ def validate_diagnosis(
     context: DiagnosticContext,
 ) -> None:
     diagnosis.validate()
-    available_ids = {evidence.id for evidence in context.evidence}
+    evidence_by_id = {evidence.id: evidence for evidence in context.evidence}
+    available_ids = set(evidence_by_id)
     unknown_ids = tuple(
         evidence_id
         for evidence_id in diagnosis.evidence_ids
@@ -66,6 +75,16 @@ def validate_diagnosis(
     )
     if unknown_ids:
         raise DiagnosisValidationError("diagnosis references evidence that is not present in context")
+    if diagnosis.diagnosis_stage == "unknown":
+        return
+    stage_domain = diagnosis.diagnosis_stage.split(".", 1)[0]
+    if not any(
+        evidence_by_id[evidence_id].category == stage_domain
+        for evidence_id in diagnosis.evidence_ids
+    ):
+        raise DiagnosisValidationError(
+            "diagnosis stage is not grounded by the referenced evidence categories"
+        )
 
 
 def resolve_evidence(
