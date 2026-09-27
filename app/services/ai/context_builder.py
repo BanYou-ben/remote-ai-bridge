@@ -23,19 +23,7 @@ class DiagnosticContextBuilder:
         doctor: DoctorReport,
     ) -> DiagnosticContext:
         profile.validate()
-        checks = (
-            ("connection.proxy.tcp", doctor.local.tcp),
-            ("connection.proxy.handshake", doctor.local.handshake),
-            ("connection.proxy.endpoint", doctor.local.endpoint),
-            ("connection.ssh.config", doctor.ssh),
-            ("connection.tunnel.process", doctor.tunnel),
-            ("connection.remote.listener", doctor.remote_listener),
-            ("connection.remote.endpoint", doctor.remote_endpoint),
-        )
-        evidence = tuple(
-            self._evidence(evidence_id, check)
-            for evidence_id, check in checks
-        )
+        evidence = build_doctor_evidence(doctor)
         return DiagnosticContext(
             profile=DiagnosticProfileSummary(
                 name=profile.name,
@@ -74,3 +62,20 @@ class DiagnosticContextBuilder:
             error_code=check.error_code,
             http_status=check.http_status,
         )
+
+
+def build_doctor_evidence(doctor: DoctorReport) -> tuple[DiagnosticEvidence, ...]:
+    """Convert a Doctor report using the canonical, explicit evidence mapping."""
+    checks = (
+        ("connection.proxy.tcp", doctor.local.tcp),
+        ("connection.proxy.handshake", doctor.local.handshake),
+        ("connection.proxy.endpoint", doctor.local.endpoint),
+        ("connection.ssh.config", doctor.ssh),
+        ("connection.tunnel.process", doctor.tunnel),
+        ("connection.remote.listener", doctor.remote_listener),
+        ("connection.remote.endpoint", doctor.remote_endpoint),
+    )
+    return tuple(
+        DiagnosticContextBuilder._evidence(evidence_id, check)
+        for evidence_id, check in checks
+    )
