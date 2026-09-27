@@ -10,6 +10,7 @@ from app.services.ai.diagnosis import (
     StructuredDiagnosis,
     resolve_evidence,
     validate_diagnosis,
+    validate_diagnosis_against_evidence,
 )
 from app.services.ai.schemas import (
     DiagnosticContext,
@@ -116,6 +117,17 @@ def test_invalid_confidence_is_rejected() -> None:
 
 def test_existing_evidence_ids_pass_context_validation() -> None:
     validate_diagnosis(structured_diagnosis(), diagnostic_context())
+
+
+def test_evidence_level_validator_accepts_real_evidence_catalog() -> None:
+    context = diagnostic_context()
+    validate_diagnosis_against_evidence(structured_diagnosis(), context.evidence)
+
+
+def test_context_validator_remains_a_wrapper_for_evidence_grounding() -> None:
+    diagnosis = structured_diagnosis(evidence_ids=("network.missing",))
+    with pytest.raises(DiagnosisValidationError, match="not present"):
+        validate_diagnosis(diagnosis, diagnostic_context())
 
 
 def test_stage_domain_matches_referenced_connection_category() -> None:

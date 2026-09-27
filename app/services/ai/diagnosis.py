@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from collections.abc import Iterable
 
 from app.services.ai.schemas import DiagnosticContext, DiagnosticEvidence
 
@@ -65,8 +66,15 @@ def validate_diagnosis(
     diagnosis: StructuredDiagnosis,
     context: DiagnosticContext,
 ) -> None:
+    validate_diagnosis_against_evidence(diagnosis, context.evidence)
+
+
+def validate_diagnosis_against_evidence(
+    diagnosis: StructuredDiagnosis,
+    evidence: Iterable[DiagnosticEvidence],
+) -> None:
     diagnosis.validate()
-    evidence_by_id = {evidence.id: evidence for evidence in context.evidence}
+    evidence_by_id = {item.id: item for item in evidence}
     available_ids = set(evidence_by_id)
     unknown_ids = tuple(
         evidence_id
