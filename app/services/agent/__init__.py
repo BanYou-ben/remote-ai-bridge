@@ -3,6 +3,7 @@
 from app.services.agent.connection_tools import build_connection_tools
 from app.services.agent.agent_contract import (
     AgentModel,
+    AgentModelError,
     AgentRequest,
     AgentRunResult,
     AgentState,
@@ -20,6 +21,7 @@ __all__ = [
     "ToolResult",
     "build_connection_tools",
     "AgentModel",
+    "AgentModelError",
     "AgentRequest",
     "AgentRunResult",
     "AgentRunner",

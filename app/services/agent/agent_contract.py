@@ -146,6 +146,14 @@ class AgentModel(Protocol):
         ...
 
 
+class AgentModelError(RuntimeError):
+    def __init__(self, code: str, message: str, *, retryable: bool) -> None:
+        self.code = code
+        self.message = redact(message)
+        self.retryable = retryable
+        super().__init__(self.message)
+
+
 def _safe_object(value: object, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be an object")

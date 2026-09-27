@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.services.agent.agent_contract import (
+    AgentModelError,
     AgentRequest,
     AgentState,
     FinalDiagnosisDecision,
@@ -409,6 +410,28 @@ def test_agent_model_exception_is_safe_and_redacted() -> None:
     ).run(AgentRequest("server", "Diagnose"))
     assert result.error_code == "AGENT_MODEL_FAILED"
     assert "RAB-SECRET" not in json.dumps(result.to_dict())
+
+
+@pytest.mark.parametrize(
+    ("code", "message", "retryable"),
+    [
+        ("AGENT_MODEL_TIMEOUT", "agent model request timed out", True),
+        ("AGENT_MODEL_REFUSAL", "agent model refused the request", False),
+    ],
+)
+def test_agent_model_error_code_is_preserved_by_runner(
+    code: str,
+    message: str,
+    retryable: bool,
+) -> None:
+    registry, _ = _registry()
+    error = AgentModelError(code, message, retryable=retryable)
+    result = AgentRunner(registry, ScriptedAgentModel([error])).run(
+        AgentRequest("server", "Diagnose")
+    )
+    assert result.status == "failed"
+    assert result.error_code == code
+    assert result.message == message
 
 
 def test_observation_order_is_stable() -> None:

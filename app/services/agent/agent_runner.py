@@ -6,6 +6,7 @@ from typing import Any
 from app.redaction import redact
 from app.services.agent.agent_contract import (
     AgentModel,
+    AgentModelError,
     AgentObservation,
     AgentRequest,
     AgentRunResult,
@@ -47,6 +48,8 @@ class AgentRunner:
             )
             try:
                 decision = self._model.decide(request, state, tools)
+            except AgentModelError as exc:
+                return self._failed(state, exc.code, exc.message)
             except Exception:
                 return self._failed(state, "AGENT_MODEL_FAILED", "agent model failed")
 
