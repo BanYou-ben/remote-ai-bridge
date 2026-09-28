@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.infrastructure.process_identity import ProcessInspector
+from app.infrastructure.application_target_store import ApplicationTargetStore
 from app.infrastructure.process_runner import ProcessRunner
 from app.infrastructure.profile_store import ProfileStore
 from app.infrastructure.host_key_store import HostKeyStore
@@ -11,6 +12,7 @@ from app.infrastructure.ssh_bootstrap import SSHBootstrapAdapter
 from app.infrastructure.ssh_key_store import SSHKeyStore
 from app.services.agent.registry_factory import build_agent_tool_registry
 from app.services.agent.tool_registry import ToolRegistry
+from app.services.application_target_service import ApplicationTargetService
 from app.services.doctor import DoctorService
 from app.services.local_proxy import LocalProxyService
 from app.services.network_transport import NetworkTransportService
@@ -40,6 +42,7 @@ class AppServices:
     remote_system: RemoteSystemService
     remote_runtime: RemoteRuntimeService
     agent_tool_registry: ToolRegistry
+    application_targets: ApplicationTargetService
 
 
 def create_services(state_dir: Path | None = None) -> AppServices:
@@ -82,6 +85,10 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         remote_system=remote_system,
         remote_runtime=remote_runtime,
     )
+    application_targets = ApplicationTargetService(
+        ApplicationTargetStore(store.root),
+        profiles,
+    )
     return AppServices(
         store=store,
         profiles=profiles,
@@ -96,4 +103,5 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         remote_system=remote_system,
         remote_runtime=remote_runtime,
         agent_tool_registry=agent_tool_registry,
+        application_targets=application_targets,
     )

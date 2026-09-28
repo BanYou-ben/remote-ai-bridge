@@ -8,6 +8,7 @@ from app.domain.profile import Profile
 from app.domain.supervisor import SupervisorSnapshot, SupervisorState
 from app.services.agent.registry_factory import build_agent_tool_registry
 from app.services.ai.context_builder import build_doctor_evidence
+from app.services.application_target_service import ApplicationTargetService
 from app.services.doctor import DoctorReport
 from app.services.local_proxy import LocalProxyReport
 from app.services.network_transport import NetworkTransportReport, NetworkTransportService
@@ -211,6 +212,9 @@ def test_create_services_exposes_agent_diagnostic_dependencies(tmp_path, monkeyp
     assert services.remote_runtime.runner is services.remote_probe.runner
     assert services.remote_runtime.remote_probe is services.remote_probe
     assert services.agent_tool_registry is not None
+    assert isinstance(services.application_targets, ApplicationTargetService)
+    assert services.application_targets.profiles is services.profiles
+    assert services.application_targets.store.root == services.store.root
 
 
 def test_create_services_passes_its_exact_service_instances_to_registry_factory(
