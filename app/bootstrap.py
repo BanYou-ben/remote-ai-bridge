@@ -12,6 +12,7 @@ from app.infrastructure.ssh_bootstrap import SSHBootstrapAdapter
 from app.infrastructure.ssh_key_store import SSHKeyStore
 from app.services.agent.registry_factory import build_agent_tool_registry
 from app.services.agent.tool_registry import ToolRegistry
+from app.services.application_diagnostics import ApplicationDiagnosticsService
 from app.services.application_target_service import ApplicationTargetService
 from app.services.doctor import DoctorService
 from app.services.local_proxy import LocalProxyService
@@ -43,6 +44,7 @@ class AppServices:
     remote_runtime: RemoteRuntimeService
     agent_tool_registry: ToolRegistry
     application_targets: ApplicationTargetService
+    application_diagnostics: ApplicationDiagnosticsService
 
 
 def create_services(state_dir: Path | None = None) -> AppServices:
@@ -73,6 +75,11 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         remote_ports=RemotePortSelector(remote_probe),
         profiles=profiles,
     )
+    application_targets = ApplicationTargetService(
+        ApplicationTargetStore(store.root),
+        profiles,
+    )
+    application_diagnostics = ApplicationDiagnosticsService(runner, remote_probe)
     agent_tool_registry = build_agent_tool_registry(
         profiles=profiles,
         runtime_manager=runtime_manager,
@@ -84,10 +91,8 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         network_transport=network_transport,
         remote_system=remote_system,
         remote_runtime=remote_runtime,
-    )
-    application_targets = ApplicationTargetService(
-        ApplicationTargetStore(store.root),
-        profiles,
+        application_targets=application_targets,
+        application_diagnostics=application_diagnostics,
     )
     return AppServices(
         store=store,
@@ -104,4 +109,5 @@ def create_services(state_dir: Path | None = None) -> AppServices:
         remote_runtime=remote_runtime,
         agent_tool_registry=agent_tool_registry,
         application_targets=application_targets,
+        application_diagnostics=application_diagnostics,
     )

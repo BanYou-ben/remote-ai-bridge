@@ -3,11 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from app import bootstrap
+from app.domain.application_target import ApplicationTarget
 from app.domain.health import CheckResult, CheckStatus
 from app.domain.profile import Profile
 from app.domain.supervisor import SupervisorSnapshot, SupervisorState
 from app.services.agent.registry_factory import build_agent_tool_registry
 from app.services.ai.context_builder import build_doctor_evidence
+from app.services.application_diagnostics import (
+    ApplicationDiagnosticsService,
+    ApplicationHealthReport,
+)
 from app.services.application_target_service import ApplicationTargetService
 from app.services.doctor import DoctorReport
 from app.services.local_proxy import LocalProxyReport
@@ -17,6 +22,8 @@ from app.services.remote_runtime import RemoteLoadReport, RemoteRuntimeService
 
 
 EXPECTED_TOOL_NAMES = [
+    "check_application_health",
+    "check_application_service",
     "check_local_proxy",
     "check_remote_disk",
     "check_remote_endpoint",
@@ -31,6 +38,7 @@ EXPECTED_TOOL_NAMES = [
     "get_remote_system_info",
     "get_remote_top_processes",
     "get_runtime_status",
+    "list_application_targets",
     "run_doctor",
 ]
 
@@ -186,6 +194,48 @@ class FakeRemoteRuntime:
         self.calls.append(f"services:{profile.name}")
         raise AssertionError("not used by composition smoke")
 
+
+class FakeApplicationTargets:
+    def __init__(self, calls: list[str]) -> None:
+        self.calls = calls
+
+    def list(self) -> list[ApplicationTarget]:
+        self.calls.append("application-targets:list")
+        return [
+            ApplicationTarget(
+                1,
+                "rab-api",
+                "server",
+                "rab-api.service",
+                "http://127.0.0.1:8000/health",
+            )
+        ]
+
+    def get(self, name: str) -> ApplicationTarget:
+        self.calls.append(f"application-targets:{name}")
+        return self.list()[0]
+
+
+class FakeApplicationDiagnostics:
+    def __init__(self, calls: list[str]) -> None:
+        self.calls = calls
+
+    def check_health(
+        self,
+        profile: Profile,
+        target: ApplicationTarget,
+    ) -> ApplicationHealthReport:
+        self.calls.append(f"application-health:{profile.name}:{target.name}")
+        return ApplicationHealthReport(
+            CheckResult("Application health", CheckStatus.PASS, "safe", http_status=200),
+            target.name,
+            200,
+        )
+
+    def check_service(self, profile: Profile, target: ApplicationTarget):
+        self.calls.append(f"application-service:{profile.name}:{target.name}")
+        raise AssertionError("not used by composition smoke")
+
 def _dependencies(calls: list[str]) -> dict[str, object]:
     return {
         "profiles": FakeProfiles(calls),
@@ -198,6 +248,8 @@ def _dependencies(calls: list[str]) -> dict[str, object]:
         "network_transport": FakeNetworkTransport(calls),
         "remote_system": FakeRemoteSystem(calls),
         "remote_runtime": FakeRemoteRuntime(calls),
+        "application_targets": FakeApplicationTargets(calls),
+        "application_diagnostics": FakeApplicationDiagnostics(calls),
     }
 
 
@@ -215,6 +267,9 @@ def test_create_services_exposes_agent_diagnostic_dependencies(tmp_path, monkeyp
     assert isinstance(services.application_targets, ApplicationTargetService)
     assert services.application_targets.profiles is services.profiles
     assert services.application_targets.store.root == services.store.root
+    assert isinstance(services.application_diagnostics, ApplicationDiagnosticsService)
+    assert services.application_diagnostics.runner is services.remote_probe.runner
+    assert services.application_diagnostics.remote_probe is services.remote_probe
 
 
 def test_create_services_passes_its_exact_service_instances_to_registry_factory(
@@ -242,13 +297,15 @@ def test_create_services_passes_its_exact_service_instances_to_registry_factory(
         "network_transport": services.network_transport,
         "remote_system": services.remote_system,
         "remote_runtime": services.remote_runtime,
+        "application_targets": services.application_targets,
+        "application_diagnostics": services.application_diagnostics,
     }
 
 
 def test_registry_factory_registers_exact_complete_tool_set() -> None:
     registry = build_agent_tool_registry(**_dependencies([]))
     assert [item.name for item in registry.list_definitions()] == EXPECTED_TOOL_NAMES
-    assert len(registry.list_definitions()) == 15
+    assert len(registry.list_definitions()) == 18
 
 
 def test_registry_factory_registers_only_read_only_tools() -> None:
@@ -262,6 +319,7 @@ def test_registry_category_distribution_is_stable() -> None:
     assert categories.count("connection") == 8
     assert categories.count("network") == 1
     assert categories.count("system") == 6
+    assert categories.count("application") == 3
 
 
 def test_registry_has_no_action_or_shell_tools() -> None:
@@ -275,6 +333,9 @@ def test_registry_has_no_action_or_shell_tools() -> None:
             "update_profile",
             "kill_process",
             "run_shell",
+            "create_application_target",
+            "update_application_target",
+            "delete_application_target",
         }
     )
 
@@ -293,7 +354,7 @@ def test_registry_definition_order_is_repeatable() -> None:
 def test_registry_factory_has_no_execution_side_effects() -> None:
     calls: list[str] = []
     registry = build_agent_tool_registry(**_dependencies(calls))
-    assert len(registry.list_definitions()) == 15
+    assert len(registry.list_definitions()) == 18
     assert calls == []
 
 
@@ -303,18 +364,28 @@ def test_factory_composition_smoke_executes_connection_and_system_tools() -> Non
     profile = registry.execute("get_profile_summary", {"profile_name": "server"})
     memory = registry.execute("check_remote_memory", {"profile_name": "server"})
     load = registry.execute("check_remote_load", {"profile_name": "server"})
+    health = registry.execute(
+        "check_application_health",
+        {"profile_name": "server", "target_name": "rab-api"},
+    )
     assert profile.ok is True
     assert profile.data["name"] == "server"
     assert memory.ok is True
     assert memory.data["evidence"][0]["id"] == "system.remote.memory"
     assert load.ok is True
     assert load.data["evidence"][0]["id"] == "system.remote.load"
+    assert health.ok is True
+    assert health.data["evidence"][0]["id"] == "application.rab-api.health"
     assert calls == [
         "profiles:server",
         "profiles:server",
         "memory:server",
         "profiles:server",
         "load:server",
+        "application-targets:rab-api",
+        "application-targets:list",
+        "profiles:server",
+        "application-health:server:rab-api",
     ]
 
 
@@ -331,4 +402,4 @@ def test_doctor_fixture_uses_canonical_evidence_without_execution_during_factory
     assert calls == []
     report = dependencies["doctor"].run(_profile())
     assert len(build_doctor_evidence(report)) == 7
-    assert len(registry.list_definitions()) == 15
+    assert len(registry.list_definitions()) == 18

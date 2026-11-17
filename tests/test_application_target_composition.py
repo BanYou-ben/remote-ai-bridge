@@ -16,14 +16,14 @@ def test_application_target_service_reuses_profile_service_and_state_root(
     assert services.application_targets.store.targets_dir == tmp_path / "application_targets"
 
 
-def test_agent_registry_remains_fifteen_read_only_diagnostic_tools(
+def test_agent_registry_adds_only_phase59_read_only_diagnostic_tools(
     tmp_path,
     monkeypatch,
 ) -> None:
     monkeypatch.setattr("app.bootstrap.locate_ssh", lambda: "ssh")
     services = bootstrap.create_services(tmp_path)
     definitions = services.agent_tool_registry.list_definitions()
-    assert len(definitions) == 15
+    assert len(definitions) == 18
     assert {item.risk_level for item in definitions} == {"read_only"}
     names = {item.name for item in definitions}
     assert names.isdisjoint(
