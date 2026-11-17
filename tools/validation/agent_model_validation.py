@@ -63,12 +63,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         key = os.environ.get("DEEPSEEK_API_KEY") or getpass.getpass("DeepSeek API key: ")
         if not key or not key.strip():
             raise ValueError("API key is required")
+        print("API key received (hidden). Validity will be checked by the API.")
         services = create_services()
         services.profiles.get(request.profile_name)
         model = OpenAICompatibleResponsesAgentModel(
             model=args.model,
             base_url=DEEPSEEK_BASE_URL,
             api_key=key,
+            strict_tools=False,
+            tool_choice="auto",
         )
         result = AgentRunner(
             services.agent_tool_registry, model, max_steps=args.max_steps
@@ -97,6 +100,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "summary": _safe_text(result.diagnosis.summary, key, MAX_SUMMARY_LENGTH),
             }
         print(json.dumps(output, ensure_ascii=True))
+        if result.status != "completed":
+            print(f"For traditional diagnostics, run: rab doctor {request.profile_name}")
         return 0 if result.status == "completed" else 1
     except (KeyboardInterrupt, EOFError):
         print("Validation cancelled.")

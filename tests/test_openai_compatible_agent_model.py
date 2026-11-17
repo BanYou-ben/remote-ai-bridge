@@ -146,7 +146,7 @@ def test_ai_infrastructure_exports_both_provider_types() -> None:
 
 def test_submit_diagnosis_is_appended_after_real_tools() -> None:
     fake = FakeResponses([_response(_function_call("get_runtime_status", {"profile_name": "server"}))])
-    _adapter(fake).decide(_request(), AgentState(), (_tool(),))
+    _adapter(fake).decide(_request(), _state(with_evidence=True), (_tool(),))
     assert [item["name"] for item in fake.calls[0]["tools"]] == [
         "get_runtime_status",
         "submit_diagnosis",
@@ -235,12 +235,31 @@ def test_diagnosis_schema_only_allows_observed_evidence_ids() -> None:
     assert ids["maxItems"] == 1
 
 
-def test_empty_state_diagnosis_schema_allows_no_invented_evidence_id() -> None:
+def test_portable_schema_does_not_change_registry_and_retains_local_diagnosis_validation() -> None:
+    definition = _tool()
+    fake = FakeResponses([_response(_function_call("submit_diagnosis", _diagnosis_payload(confidence="invalid")))])
+    adapter = OpenAICompatibleResponsesAgentModel(
+        "test-model", "https://provider.example/v1", strict_tools=False, client=FakeClient(fake)
+    )
+    with pytest.raises(AgentModelError) as raised:
+        adapter.decide(_request(), _state(with_evidence=True), (definition,))
+    assert raised.value.code == "AGENT_MODEL_INVALID_RESPONSE"
+    for tool in fake.calls[0]["tools"]:
+        assert "strict" not in tool
+    diagnosis = fake.calls[0]["tools"][-1]["parameters"]["properties"]
+    assert diagnosis["confidence"]["enum"] == ["low", "medium", "high"]
+    assert diagnosis["evidence_ids"]["items"]["enum"] == ["connection.tunnel.process"]
+    assert definition.input_schema == _tool().input_schema
+
+
+def test_empty_state_omits_diagnosis_schema_and_rejects_unsolicited_diagnosis() -> None:
     fake = FakeResponses([_response(_function_call("get_runtime_status", {"profile_name": "server"}))])
     _adapter(fake).decide(_request(), AgentState(), (_tool(),))
-    ids = fake.calls[0]["tools"][-1]["parameters"]["properties"]["evidence_ids"]
-    assert ids["items"]["enum"] == []
-    assert ids["maxItems"] == 0
+    assert [tool["name"] for tool in fake.calls[0]["tools"]] == ["get_runtime_status"]
+    unsolicited = FakeResponses([_response(_function_call("submit_diagnosis", _diagnosis_payload()))])
+    with pytest.raises(AgentModelError) as raised:
+        _adapter(unsolicited).decide(_request(), AgentState(), (_tool(),))
+    assert raised.value.code == "AGENT_MODEL_INVALID_RESPONSE"
 
 
 @pytest.mark.parametrize(
@@ -348,6 +367,24 @@ def test_single_call_transport_controls_are_explicit() -> None:
     assert call["max_tool_calls"] == 1
 
 
+def test_auto_tool_choice_still_rejects_free_text_and_multiple_calls() -> None:
+    for response in (
+        _response(SimpleNamespace(type="message", content=())),
+        _response(
+            _function_call("get_runtime_status", {"profile_name": "server"}),
+            _function_call("get_runtime_status", {"profile_name": "server"}),
+        ),
+    ):
+        fake = FakeResponses([response])
+        adapter = OpenAICompatibleResponsesAgentModel(
+            "test-model", "https://provider.example/v1", tool_choice="auto", client=FakeClient(fake)
+        )
+        with pytest.raises(AgentModelError) as raised:
+            adapter.decide(_request(), AgentState(), (_tool(),))
+        assert raised.value.code == "AGENT_MODEL_INVALID_RESPONSE"
+        assert fake.calls[0]["tool_choice"] == "auto"
+
+
 def test_default_transport_configuration_is_passed_to_client(monkeypatch) -> None:
     responses = FakeResponses([_response(_function_call("get_runtime_status", {"profile_name": "server"}))])
     factory = CapturingFactory(FakeClient(responses))
@@ -398,7 +435,7 @@ def test_injected_client_does_not_create_sdk_client(monkeypatch) -> None:
     ("error", "code", "retryable"),
     [
         (TimeoutError("secret timeout"), "AGENT_MODEL_TIMEOUT", True),
-        (ConnectionError("secret connection"), "AGENT_MODEL_UNAVAILABLE", True),
+        (ConnectionError("secret connection"), "AGENT_MODEL_CONNECTION_FAILED", True),
         (RuntimeError("RAB-SDK-SECRET"), "AGENT_MODEL_UNAVAILABLE", False),
     ],
 )

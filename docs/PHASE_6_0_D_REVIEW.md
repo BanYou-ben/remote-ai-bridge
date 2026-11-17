@@ -24,13 +24,13 @@ D:\anaconda\envs\BY\python.exe -m tools.validation.deepseek_isolated_probe
 
 入口先显示费用和数据说明；只有输入 `YES` 才继续，然后在本机通过 `getpass` 输入 DeepSeek API Key。不要在聊天、命令参数或日志中提供密钥。本机需具备 BY 环境及可连接 DeepSeek 的网络。
 
-请求上限：**最多 3 次 Responses API 请求**，SDK `max_retries=0`；模型提前失败、拒绝、多调用或诊断无效时可能少于三次。请求费用取决于服务价格及 token 使用；本阶段没有核算或产生费用。
+请求上限：**最多 3 次 Responses API 请求**，SDK `max_retries=0`；模型提前失败、拒绝、多调用或诊断无效时可能少于三次。用户的真实请求可能产生费用；本报告未取得或核算费用和 token 用量。
 
 数据外发范围：固定英文测试问题、固定 Profile 名 `fixture-server`、两个模拟工具定义和返回的固定测试观察与 Evidence、诊断 schema。不会发送真实 Profile、真实服务器信息或 SSH 凭据。API Key 用于向 DeepSeek 认证，不作为问题或测试数据发送；不要把密钥发给助手。输出仅包含状态、错误码、受限工具名、成功状态与 grounding/顺序结果，不打印模型摘要、原始工具返回或密钥。
 
 ## 已知风险
 
-DeepSeek [官方 Responses 指南](https://api-docs.deepseek.com/guides/responses_api/)说明 `parallel_tool_calls` 和 `max_tool_calls` 被忽略；本地 Adapter 将多个 function call 全部拒绝。strict schema 和空 Evidence enum 在真实 Responses 上是否受支持仍未验证；若真实请求出错，需在取得安全错误信息后再定位，不能用模拟测试宣称真实兼容。
+DeepSeek [官方 Responses 指南](https://api-docs.deepseek.com/guides/responses_api/)说明 `parallel_tool_calls` 和 `max_tool_calls` 被忽略；本地 Adapter 将多个 function call 全部拒绝。strict schema 和空 Evidence enum 在真实 Responses 上是否受支持仍未验证；一次隔离成功不代表所有模型输出或主机环境均兼容。
 
 ## HTTP 400 后的离线修复
 

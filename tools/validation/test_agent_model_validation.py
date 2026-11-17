@@ -110,7 +110,9 @@ def test_provider_errors_are_safe(monkeypatch, capsys, error):
     setup_validation(monkeypatch, [error], calls)
     assert validation.main(args()) == 1
     assert calls == []
-    assert "FAKE_PRIVATE_KEY_TEST" not in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "FAKE_PRIVATE_KEY_TEST" not in output
+    assert "rab doctor server" in output
 
 
 def test_cli_rejects_key_argument_and_out_of_bounds_steps():
