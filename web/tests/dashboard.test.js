@@ -85,6 +85,15 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('lab-server')
   })
 
+  it('does not claim there are no profiles when the backend request failed', async () => {
+    listProfiles.mockRejectedValue({ code: 'BACKEND_UNAVAILABLE', message: 'Backend unavailable.' })
+    listRuntime.mockRejectedValue({ code: 'BACKEND_UNAVAILABLE', message: 'Backend unavailable.' })
+    const wrapper = mount(DashboardView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('无法读取连接配置')
+    expect(wrapper.text()).not.toContain('暂无连接配置')
+  })
+
   it('shows the profiles empty state', async () => {
     successfulRequests({ profiles: [] })
     const wrapper = mount(DashboardView)
@@ -99,6 +108,16 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('127.0.0.1:7897')
     expect(wrapper.text()).toContain('已就绪')
     expect(wrapper.text()).toContain('连接运行正常')
+  })
+
+  it('does not count an externally supervised live SSH process as stopped', async () => {
+    successfulRequests({ runtimeItems: [{ ...runtime, state: 'UNSUPERVISED', supervised: false, runtime_present: true, process_alive: true,
+      message: 'runtime evidence exists and the owned process identity matches' }] })
+    const wrapper = mount(DashboardView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('进程存活')
+    expect(wrapper.text()).toContain('存在运行记录，且已验证对应进程身份')
+    expect(wrapper.text()).toContain('0 已就绪 · 0 未运行')
   })
 
   it('refreshes all read-only resources on demand', async () => {
@@ -120,7 +139,7 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('已开启')
     expect(wrapper.text()).toContain('是')
     expect(wrapper.text()).toContain('未运行')
-    expect(wrapper.text()).toContain('已受监督')
+    expect(wrapper.text()).toContain('已受本进程监督')
     expect(wrapper.text()).not.toContain('未托管')
   })
 

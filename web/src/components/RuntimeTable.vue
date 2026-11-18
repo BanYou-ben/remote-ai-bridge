@@ -1,6 +1,6 @@
 <script setup>
 import StatusBadge from './StatusBadge.vue'
-import { formatBoolean, formatRuntimeMessage, formatSupervision } from '../utils/display.js'
+import { formatBoolean, formatRuntimeMessage, formatRuntimeState, formatSupervision } from '../utils/display.js'
 
 defineProps({
   runtime: { type: Array, required: true },
@@ -28,7 +28,7 @@ defineProps({
 
       <div class="runtime-item-status">
         <span class="runtime-field-label">STATUS</span>
-        <StatusBadge :status="item.state" />
+        <StatusBadge :status="item.state" :label="formatRuntimeState(item)" />
       </div>
 
       <div class="runtime-item-field">

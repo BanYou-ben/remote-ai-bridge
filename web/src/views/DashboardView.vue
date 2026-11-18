@@ -3,10 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import { getHealth, listProfiles, listRuntime } from '../api/rab.js'
 import DoctorPanel from '../components/DoctorPanel.vue'
+import AIDiagnosisPanel from '../components/AIDiagnosisPanel.vue'
 import ProfileTable from '../components/ProfileTable.vue'
 import RuntimeTable from '../components/RuntimeTable.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import { useRuntimeControls } from '../composables/useRuntimeControls.js'
+import { formatRuntimeState } from '../utils/display.js'
 
 const health = ref(null)
 const profiles = ref([])
@@ -17,7 +19,7 @@ const errors = reactive({ health: null, profiles: null, runtime: null })
 const refreshing = computed(() => Object.values(loading).some(Boolean))
 const readyCount = computed(() => runtime.value.filter((item) => item.state === 'READY').length)
 const stoppedCount = computed(
-  () => runtime.value.filter((item) => ['STOPPED', 'UNSUPERVISED'].includes(item.state)).length,
+  () => runtime.value.filter((item) => item.state === 'STOPPED' || (item.state === 'UNSUPERVISED' && item.runtime_present === false)).length,
 )
 
 const activeRuntime = computed(() =>
@@ -115,7 +117,11 @@ onMounted(refresh)
       <div class="connection-hero-top">
         <div>
           <p class="panel-kicker">CURRENT CONNECTION</p>
-          <template v-if="currentName">
+          <template v-if="errors.profiles && !currentName">
+            <h2 id="current-connection-title">无法读取连接配置</h2>
+            <p class="connection-target">请确认本地后端可用后刷新。</p>
+          </template>
+          <template v-else-if="currentName">
             <h2 id="current-connection-title">{{ currentName }}</h2>
             <p class="connection-target">
               {{ currentProfile?.ssh_target || '运行记录存在，但对应连接配置不可用' }}
@@ -127,7 +133,7 @@ onMounted(refresh)
           </template>
         </div>
 
-        <StatusBadge v-if="currentRuntime" :status="currentRuntime.state" />
+        <StatusBadge v-if="currentRuntime" :status="currentRuntime.state" :label="formatRuntimeState(currentRuntime)" />
         <span v-else class="status-badge status-inactive">未运行</span>
       </div>
 
@@ -144,7 +150,7 @@ onMounted(refresh)
             <strong class="monospace">
               {{ currentProfile.remote_bind_host }}:{{ currentRuntime?.remote_port ?? currentProfile.remote_port }}
             </strong>
-            <span>{{ currentRuntime?.supervised ? '已受监督' : '未受监督' }}</span>
+            <span>{{ currentRuntime?.supervised ? '已受本进程监督' : '未受本进程监督' }}</span>
           </div>
           <span class="route-link" aria-hidden="true"><i></i></span>
           <div class="route-node">
@@ -193,7 +199,7 @@ onMounted(refresh)
         </div>
       </template>
 
-      <div v-else-if="!loading.profiles" class="connection-empty">
+      <div v-else-if="!loading.profiles && !errors.profiles" class="connection-empty">
         <div class="connection-empty-copy">
           <span class="connection-empty-icon" aria-hidden="true">+</span>
           <div>
@@ -240,7 +246,7 @@ onMounted(refresh)
               <span v-else>已保存配置</span>
             </div>
           </div>
-          <span class="snapshot-number">{{ loading.profiles ? '—' : profiles.length }}</span>
+          <span class="snapshot-number">{{ loading.profiles || errors.profiles ? '—' : profiles.length }}</span>
         </div>
 
         <div class="snapshot-item">
@@ -253,7 +259,7 @@ onMounted(refresh)
               <span v-else>{{ readyCount }} 已就绪 · {{ stoppedCount }} 未运行</span>
             </div>
           </div>
-          <span class="snapshot-number">{{ loading.runtime ? '—' : readyCount }}</span>
+          <span class="snapshot-number">{{ loading.runtime || errors.runtime ? '—' : readyCount }}</span>
         </div>
       </div>
     </section>
@@ -267,7 +273,7 @@ onMounted(refresh)
         <p>当前保存的远程连接</p>
       </div>
       <div class="section-heading-actions">
-        <span class="count">{{ profiles.length }} 条</span>
+        <span class="count">{{ loading.profiles || errors.profiles ? '—' : `${profiles.length} 条` }}</span>
         <RouterLink class="section-add-link" to="/setup">+ 添加连接</RouterLink>
       </div>
     </div>
@@ -305,7 +311,7 @@ onMounted(refresh)
         <h2 id="runtime-title">运行状态</h2>
         <p>连接进程与 Reverse Tunnel 状态</p>
       </div>
-      <span class="count">{{ runtime.length }} 条</span>
+      <span class="count">{{ loading.runtime || errors.runtime ? '—' : `${runtime.length} 条` }}</span>
     </div>
     <p v-if="loading.runtime" class="state-message">正在加载运行状态……</p>
     <div v-else-if="errors.runtime" class="structured-error" role="alert">
@@ -320,4 +326,5 @@ onMounted(refresh)
     @close="controls.closeDoctor"
     @retry="controls.diagnose"
   />
+  <AIDiagnosisPanel :profiles="profiles" />
 </template>

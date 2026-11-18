@@ -4,6 +4,7 @@ import { formatSupervisorState } from '../utils/display.js'
 
 const props = defineProps({
   status: { type: String, required: true },
+  label: { type: String, default: '' },
 })
 
 const statusClass = computed(() => {
@@ -16,5 +17,5 @@ const statusClass = computed(() => {
 </script>
 
 <template>
-  <span class="status-badge" :class="`status-${statusClass}`">{{ formatSupervisorState(status) }}</span>
+  <span class="status-badge" :class="`status-${statusClass}`">{{ label || formatSupervisorState(status) }}</span>
 </template>

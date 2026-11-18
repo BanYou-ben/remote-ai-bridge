@@ -32,6 +32,10 @@ export async function runDoctor(name) {
   return (await client.post(`/doctor/${encodeURIComponent(name)}`)).data
 }
 
+export async function runAIDiagnosis(name, payload) {
+  return (await client.post(`/ai/diagnose/${encodeURIComponent(name)}`, payload, { timeout: 600000 })).data
+}
+
 export async function prepareHost(payload) {
   return (await client.post('/setup/host/prepare', payload)).data
 }

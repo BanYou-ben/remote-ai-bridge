@@ -14,7 +14,9 @@ Windows 本地回环 HTTP/Mixed Proxy
 Linux 远端回环 Endpoint
 ```
 
-RAB 让用户不必手写常规 `ssh -R` 命令，也不必把 Proxy、SSH、Remote Port 和 Runtime 故障割裂排查。它不是 VPN、通用 NAT 穿透平台或云服务。v0.4.0 面向 Windows 本地主机，当前不包含 AI Diagnostic Assistant；该能力属于后续 v0.5 工作。
+RAB 让用户不必手写常规 `ssh -R` 命令，也不必把 Proxy、SSH、Remote Port 和 Runtime 故障割裂排查。它不是 VPN、通用 NAT 穿透平台或云服务。已发布的 v0.4.0 面向 Windows 本地主机；当前开发分支另有尚未发布的 LangChain AI 诊断功能。
+
+开发分支的 AI 链路已通过离线自动化测试；用户报告新版 LangChain / ChatDeepSeek 使用模拟数据的真实 API 探针成功，真实 Linux 与浏览器端到端流程尚未验收。具体范围及人工验收步骤见 [验收报告](docs/LANGCHAIN_ACCEPTANCE_REPORT.md)。
 
 ## 功能
 
@@ -103,6 +105,14 @@ v0.4.0 Vue Web UI 支持：
 python -m pip install -e .
 ```
 
+当前开发分支在 Windows / Python 3.10.19 下也提供项目专属环境及锁定依赖：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
+.\.venv\Scripts\python.exe -m pip install --no-deps -e .
+```
+
 启动本地后端：
 
 ```powershell
@@ -175,6 +185,23 @@ SSH / Proxy / Filesystem infrastructure
 ```
 
 CLI 与 HTTP API 共用同一个 Service Graph。前端不会重新实现 SSH、Host Key、代理、进程所有权或 Credential 安全逻辑。
+
+当前开发分支的 AI 诊断调用关系：
+
+```mermaid
+flowchart LR
+    UI[Vue AI 诊断] --> API[FastAPI 本地接口]
+    API --> LC[LangChain create_agent / ChatDeepSeek]
+    LC --> Bridge[只读工具桥接与 Profile Scope]
+    Bridge --> Registry[ToolRegistry：18 个诊断工具]
+    Registry --> Services[Doctor / Runtime / 网络 / 系统 / 应用服务]
+    Services --> Evidence[最小化 Evidence]
+    Evidence --> LC
+    LC --> Grounding[结构化结果与 Evidence 校验]
+    Grounding --> API
+```
+
+AI 不可用时仍可独立使用 Doctor。用户问题及经过筛选的诊断信息可能发往 DeepSeek 并产生费用；请勿输入密码或密钥。FastAPI 仅限回环地址使用。
 
 ## 开发与验证
 

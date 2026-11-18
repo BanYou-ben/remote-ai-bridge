@@ -16,6 +16,12 @@ class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AIDiagnosisRequest(StrictRequest):
+    question: StrictStr
+    api_key: SecretStr
+    consent: StrictBool
+
+
 class RuntimeSnapshotResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 

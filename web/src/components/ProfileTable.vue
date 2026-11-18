@@ -69,11 +69,11 @@ defineEmits(['connect', 'disconnect', 'doctor'])
   padding: 0 9px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #fff;
-  color: #454b51;
+  background: var(--surface-subtle);
+  color: var(--text);
   font-size: 11px;
   text-decoration: none;
 }
 
-.manage-link:hover { background: #f4f6f7; }
+.manage-link:hover { background: var(--surface-strong); }
 </style>

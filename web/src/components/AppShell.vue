@@ -3,9 +3,9 @@
     <aside class="sidebar" aria-label="Primary navigation">
       <RouterLink class="brand" to="/" aria-label="Remote AI Bridge 首页">
         <span class="brand-mark" aria-hidden="true">
-          <img class="brand-logo-mark" src="/rab-logo-mark.svg" alt="" />
+          <svg class="brand-bridge-mark" viewBox="0 0 40 40" fill="none"><path d="M8 13.5 20 7l12 6.5v13L20 33 8 26.5v-13Z"/><path d="M13 17h5m4 0h5M13 23h5m4 0h5M18 17l4 6m0-6-4 6"/><circle cx="12" cy="17" r="1.5"/><circle cx="28" cy="23" r="1.5"/></svg>
         </span>
-        <strong>RAB</strong>
+        <span class="brand-copy"><strong>Remote AI Bridge</strong><small>远程连接控制台</small></span>
       </RouterLink>
 
       <nav class="primary-nav">
@@ -33,7 +33,7 @@
 
       <div class="sidebar-footer">
         <span class="local-status-dot" aria-hidden="true"></span>
-        <span>LOCAL</span>
+        <span>本地控制台</span>
       </div>
     </aside>
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+from urllib.parse import urlsplit
+import ipaddress
 
 from app.api.errors import stop_failure_error, validated_profile_name
 from app.api.schemas import (
+    AIDiagnosisRequest,
     DoctorReportResponse,
     HealthResponse,
     HostConfirmRequest,
@@ -19,6 +23,8 @@ from app.api.schemas import (
 )
 from app.bootstrap import AppServices
 from app.domain.supervisor import SupervisorState
+from app.domain.errors import RABError
+from app.services.agent.web_diagnostics import DIAGNOSIS_GATE, create_deepseek_model, public_result, run_web_diagnostics, safe_question
 from app.services.local_proxy import DEFAULT_CANDIDATE_PORTS
 from app.services.runtime_manager import RuntimeManager
 
@@ -155,3 +161,43 @@ def run_doctor(name: str, request: Request) -> DoctorReportResponse:
     selected_name = validated_profile_name(name)
     profile = _services(request).profiles.get(selected_name)
     return DoctorReportResponse.from_report(_services(request).doctor.run(profile))
+
+
+def _loopback_host(host: str | None) -> bool:
+    if not host:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+@router.post("/ai/diagnose/{name}")
+def ai_diagnose(name: str, payload: AIDiagnosisRequest, request: Request) -> JSONResponse:
+    # Reject DNS-rebinding and remote origins before accepting credentials.
+    host = urlsplit("//" + request.headers.get("host", "")).hostname
+    origin_header = request.headers.get("origin")
+    origin = urlsplit(origin_header) if origin_header else None
+    if not _loopback_host(host) or (origin is not None and (origin.scheme not in {"http", "https"} or not _loopback_host(origin.hostname))):
+        raise RABError("AI_ORIGIN_UNSAFE", "AI diagnostics requires a local origin")
+    if not payload.consent:
+        raise RABError("AI_CONSENT_REQUIRED", "explicit consent is required")
+    selected_name = validated_profile_name(name)
+    if not payload.question.strip() or len(payload.question) > 500:
+        raise RABError("AI_QUESTION_INVALID", "question must contain 1 to 500 characters")
+    secret = payload.api_key.get_secret_value()
+    if not secret.strip() or len(secret) > 512:
+        raise RABError("AI_KEY_INVALID", "API key is invalid")
+    services = _services(request)
+    services.profiles.get(selected_name)
+    if not DIAGNOSIS_GATE.acquire(blocking=False):
+        raise RABError("AI_DIAGNOSIS_BUSY", "an AI diagnosis is already running", retryable=True)
+    try:
+        model = create_deepseek_model(secret)
+        result = run_web_diagnostics(services.agent_tool_registry, model, selected_name, safe_question(payload.question, secret), secret)
+        return JSONResponse(content=public_result(result, secret), headers={"Cache-Control": "no-store"})
+    finally:
+        secret = ""
+        DIAGNOSIS_GATE.release()

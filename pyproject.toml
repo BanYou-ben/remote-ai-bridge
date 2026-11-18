@@ -12,6 +12,9 @@ dependencies = [
     "fastapi==0.141.1",
     "uvicorn==0.50.2",
     "openai==3.19.2",
+    "langchain==1.4.10",
+    "langchain-deepseek==1.1.1",
+    "langgraph==1.2.22",
 ]
 
 [project.optional-dependencies]

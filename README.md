@@ -14,7 +14,9 @@ Windows loopback HTTP/Mixed proxy
 Remote Linux loopback endpoint
 ```
 
-RAB removes the need to hand-write routine `ssh -R` commands or diagnose proxy, SSH, remote-port, and runtime failures as unrelated problems. It is not a VPN, a general NAT-traversal platform, or a cloud service. Version 0.4.0 targets a Windows local host and does not include an AI diagnostic assistant; that remains future v0.5 work.
+RAB removes the need to hand-write routine `ssh -R` commands or diagnose proxy, SSH, remote-port, and runtime failures as unrelated problems. It is not a VPN, a general NAT-traversal platform, or a cloud service. The released v0.4.0 targets a Windows local host; the current development branch additionally contains an unreleased LangChain AI diagnostic workflow.
+
+The development AI path has passed offline tests. The user reports that the new LangChain / ChatDeepSeek path passed a real API probe using fixture data; the real Linux and browser end-to-end workflow has not yet been validated. See the [acceptance report](docs/LANGCHAIN_ACCEPTANCE_REPORT.md) for scope and manual verification steps.
 
 ## Features
 
@@ -103,6 +105,14 @@ Clone the repository, open PowerShell in the project directory, and install the 
 python -m pip install -e .
 ```
 
+For the development branch, a project-specific environment and pinned dependencies were validated on Windows / Python 3.10.19:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
+.\.venv\Scripts\python.exe -m pip install --no-deps -e .
+```
+
 Start the local backend:
 
 ```powershell
@@ -175,6 +185,23 @@ SSH / Proxy / Filesystem infrastructure
 ```
 
 The CLI and HTTP API share the same service graph; frontend code does not reimplement SSH, Host Key, proxy, process-ownership, or credential safety logic.
+
+The development branch's AI diagnostic path:
+
+```mermaid
+flowchart LR
+    UI[Vue AI diagnostics] --> API[Local FastAPI endpoint]
+    API --> LC[LangChain create_agent / ChatDeepSeek]
+    LC --> Bridge[Read-only tool bridge and profile scope]
+    Bridge --> Registry[ToolRegistry: 18 diagnostic tools]
+    Registry --> Services[Doctor / Runtime / network / system / application]
+    Services --> Evidence[Minimized evidence]
+    Evidence --> LC
+    LC --> Grounding[Structured output and evidence validation]
+    Grounding --> API
+```
+
+Doctor remains available independently of AI. User questions and selected diagnostic information may be sent to DeepSeek and incur charges; do not enter passwords or keys in the question. Keep FastAPI on loopback.
 
 ## Development and verification
 
